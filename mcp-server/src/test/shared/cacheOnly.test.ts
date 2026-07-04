@@ -1,4 +1,4 @@
-import { db } from "../db.js";
+import { db } from "../../db.js";
 
 function main() {
   // Insert a fake cached company row

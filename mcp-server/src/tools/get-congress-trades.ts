@@ -430,16 +430,16 @@ export async function getCongressTrades(input: GetCongressTradesInput): Promise<
     filtered = filtered.filter((t) => t.market_cap === null || t.market_cap >= input.market_cap_min!);
   }
 
+  // Filter by included tickers (if specified)
+  if (input.included_tickers?.length) {
+    const included = new Set(input.included_tickers.map(t => t.toUpperCase()));
+    filtered = filtered.filter(t => included.has(t.ticker));
+  }
+
   // Excluded tickers
   if (input.excluded_tickers && input.excluded_tickers.length > 0) {
     const excluded = new Set(input.excluded_tickers.map((s) => s.toUpperCase()));
     filtered = filtered.filter((t) => !excluded.has(t.ticker.toUpperCase()));
-  }
-
-  // Included tickers (if set, only show these)
-  if (input.included_tickers && input.included_tickers.length > 0) {
-    const included = new Set(input.included_tickers.map((s) => s.toUpperCase()));
-    filtered = filtered.filter((t) => included.has(t.ticker.toUpperCase()));
   }
 
   // Sort by outlier_score descending (most interesting first), tie-break by date.

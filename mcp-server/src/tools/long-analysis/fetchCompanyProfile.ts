@@ -3,13 +3,11 @@ import { finnhubProvider } from "../../providers/finnhub.js";
 import { db } from "../../db.js";
 import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
 
-/**
- * fetch_company_profile MCP tool
- *
- * Fetches company profile from Finnhub with two-tier caching:
- * 1. Fast path: companies table (coverage-based, permanent cache)
- * 2. TTL path: api_cache table (24-hour TTL), fetch from Finnhub if missing
- */
+export const FetchCompanyProfileInput = z.object({
+  ticker: z.string().describe("Stock ticker, e.g. AAPL"),
+});
+
+export type FetchCompanyProfileInput = z.infer<typeof FetchCompanyProfileInput>;
 
 export interface CompanyProfile {
   ticker: string;
@@ -28,21 +26,11 @@ export interface CompanyProfile {
 
 const PROFILE_TTL_MINUTES = 60 * 24; // 24 hours
 
-// Input schema
-export const FetchCompanyProfileInput = z.object({
-  ticker: z.string().min(1).max(10).describe("Stock ticker symbol (e.g. AAPL)"),
-});
-
-export type FetchCompanyProfileInput = z.infer<typeof FetchCompanyProfileInput>;
-
-/**
- * Fetch a company profile with two-tier caching.
- */
 export async function fetchCompanyProfile(ticker: string): Promise<CompanyProfile> {
   const normalizedTicker = ticker.toUpperCase();
   const cacheKey = `profile:${normalizedTicker}`;
 
-  // 1. Fast path: normalized companies table (coverage-based, permanent)
+  // 1. Fast path: normalized companies table
   const normalizedRow = db
     .prepare("SELECT * FROM companies WHERE ticker = ?")
     .get(normalizedTicker) as
@@ -138,30 +126,21 @@ export async function fetchCompanyProfile(ticker: string): Promise<CompanyProfil
   return profile;
 }
 
-// Tool definition for MCP registration
 export const fetchCompanyProfileTool = {
   name: "fetch_company_profile",
-  description: "Get a company's profile including name, sector, industry, exchange, market cap, and more. Data is cached in SQLite to minimize API calls.",
+  description: "Fetch a public company's profile from Finnhub and cache it in SQLite.",
   inputSchema: {
     type: "object",
     properties: {
       ticker: {
         type: "string",
-        description: "Stock ticker symbol (e.g. AAPL)",
+        description: "Stock ticker, e.g. AAPL",
       },
     },
     required: ["ticker"],
   },
-  handler: async (args: any) => {
-    const input = FetchCompanyProfileInput.parse(args);
-    const profile = await fetchCompanyProfile(input.ticker);
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(profile, null, 2),
-        },
-      ],
-    };
+  handler: async (args: unknown) => {
+    const { ticker } = FetchCompanyProfileInput.parse(args);
+    return await fetchCompanyProfile(ticker);
   },
 };

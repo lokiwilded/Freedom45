@@ -1,5 +1,5 @@
-import { fetchCompanyProfile } from "../tools/long-analysis/fetchCompanyProfile.js";
-import { finnhubProvider } from "../providers/finnhub.js";
+import { fetchCompanyProfile } from "../../tools/long-analysis/fetchCompanyProfile.js";
+import { finnhubProvider } from "../../providers/finnhub.js";
 
 async function main() {
   const ticker = process.argv[2] || "AAPL";

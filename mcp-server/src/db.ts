@@ -58,6 +58,18 @@ db.exec(`
     UNIQUE(ticker, date, source)
   );
 
+  -- Fundamental metrics (from Matt — time-series cache)
+  CREATE TABLE IF NOT EXISTS fundamentals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    metric TEXT NOT NULL,
+    value REAL,
+    period TEXT,
+    source TEXT DEFAULT 'finnhub',
+    updated_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(ticker, metric, period, source)
+  );
+
   -- Congressional trades (from Loki)
   CREATE TABLE IF NOT EXISTS congress_trades (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
