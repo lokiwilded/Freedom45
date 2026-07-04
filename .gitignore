@@ -3,3 +3,9 @@ dist/
 .env
 *.log
 .DS_Store
+
+# SQLite databases
+data/
+
+# Local AI config
+.opencode/
