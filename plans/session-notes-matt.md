@@ -145,3 +145,38 @@
 - Session C: `analyzeDividendHealth` + `analyzeFinancialHealth`
 - Session D: `scoreCompany` + `compareCompanies`
 - Session E: `buildThesis` (capstone)
+
+## 2026-07-04 — Test Hardening: Assertions Added to All Smoke Tests
+
+### Context
+- All 23 Matt-authored test files were smoke scripts — they ran the tool and printed JSON but didn't assert anything. No pass/fail, no exit code on bad results.
+- Added real assertions to every test so they catch regressions. Only Matt's test files were touched; Loki's tests (`getCongressTrades.test.ts`, `cacheOnly.test.ts`) were left unchanged.
+
+### What Was Done
+- **New: `test/shared/assertions.ts`** — tiny assertion helper library with `assert`, `assertEqual`, `assertType`, `assertNotNull`, `assertArray`, `assertInArray`, `printSummary`. Tests exit 1 on failure.
+- **23 test files rewritten** — each now includes assertions on output structure, types, and sane values. Examples:
+  - `fetchStockQuote.test.ts`: asserts ticker matches input, price/change/changePercent are numbers, fromCache is boolean, timestamp present
+  - `analyzeValuation.test.ts`: asserts score is number, verdict is one of the valid values, components.pe/pb are numbers, comparison.peers is array
+  - `analyzeRelativeStrength.test.ts`: asserts verdict is valid, score null implies note present, score non-null implies alpha+beta present
+- **7 tests that hit Finnhub free-tier 403s** (history, trend, relative-strength, dividends, splits, institutional-ownership, fund-ownership) now catch the API error and assert it's a free-tier limit, not a real bug.
+
+### Finnhub Free-Tier Endpoint Discovery
+- Confirmed blocked on free tier (403): `/stock/candle`, `/stock/congressional-trading`, `/stock/dividend`, `/stock/split`, `/stock/institutional-ownership`, `/stock/fund-ownership`
+- Working on free tier: `/quote`, `/stock/metric`, `/stock/profile`, `/stock/peers`, `/search`, `/stock/insider-transactions`, `/company-news`, `/news`, `/calendar/earnings`, `/stock/earnings`, `/stock/recommendation`, `/stock/price-target`, `/stock/upgrade-downgrade`, `/stock/filings`
+
+### Verification
+- `npm run build` — TypeScript compiles clean ✅
+- `npm run test:offline` — 45 calc tests + registry (23 tools) + cache ✅
+- Live tests pass: quote, profile, peers, search, recommendations, valuation, earnings, insider, company-news, market-news, sec-filings, earnings-calendar, price-target, upgrade-downgrade ✅
+- 403-graceful tests pass: history, trend, relative-strength, dividends, splits, inst-own, fund-own ✅
+
+### Files Changed
+- New: `mcp-server/src/test/shared/assertions.ts`
+- Modified: 23 test files in `src/test/long-analysis/`
+- Loki's files untouched: `getCongressTrades.test.ts`, `cacheOnly.test.ts`, `scoring/outlier.ts`, `config/outlier-settings.ts`, `get-congress-trades.ts`, `cache.ts`, `db.ts`
+
+### Next Steps
+- Session B: `analyzeEarningsQuality` + `analyzeInsiderSentiment` + `analyzeAnalystConsensus`
+- Session C: `analyzeDividendHealth` + `analyzeFinancialHealth`
+- Session D: `scoreCompany` + `compareCompanies`
+- Session E: `buildThesis` (capstone)
