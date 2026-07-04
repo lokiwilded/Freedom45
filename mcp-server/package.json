@@ -6,15 +6,19 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test:profile": "node --env-file=../.env --import tsx src/test/long-analysis/fetchCompanyProfile.test.ts",
+    "test:tool": "node --env-file=../.env --import tsx src/test/long-analysis/fetchCompanyProfileTool.test.ts",
+    "test:cache": "node --import tsx src/test/shared/cacheOnly.test.ts",
+    "test:registry": "node --import tsx src/test/shared/registry.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "better-sqlite3": "^12.11.1"
+    "zod": "^3.23.0"
   },
   "devDependencies": {
-    "typescript": "^5.5.0",
-    "@types/node": "^20.0.0",
-    "@types/better-sqlite3": "^7.6.13"
+    "@types/node": "^22.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.5.0"
   }
 }

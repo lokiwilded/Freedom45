@@ -1,26 +1,25 @@
+#!/usr/bin/env node
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { dbManager } from "./db/manager.js";
 import { finnhubProvider } from "./providers/finnhub.js";
 import { getCongressTradesTool } from "./tools/get-congress-trades.js";
-
-// Initialize databases
-dbManager.init();
+import { longAnalysisTools } from "./tools/long-analysis/index.js";
 
 // Initialize Finnhub provider (API key from env)
 const finnhubApiKey = process.env.FINNHUB_API_KEY;
 if (finnhubApiKey) {
   finnhubProvider.init(finnhubApiKey);
 } else {
-  console.error("Warning: FINNHUB_API_KEY not set. Congressional trading tool will fail.");
+  console.error("Warning: FINNHUB_API_KEY not set. Tools that use Finnhub will fail.");
 }
 
-// Tool registry
+// Tool registry — all tools from all categories
 const tools: Record<string, { name: string; description: string; inputSchema: any; handler: (args: any) => Promise<any> }> = {
+  // General tools
   hello: {
     name: "hello",
     description: "A simple hello world tool to verify the server works",
@@ -42,8 +41,15 @@ const tools: Record<string, { name: string; description: string; inputSchema: an
       };
     },
   },
+
+  // Congressional trading
   get_congress_trades: getCongressTradesTool,
 };
+
+// Auto-discover tools from subdirectories
+for (const tool of longAnalysisTools) {
+  tools[tool.name] = tool;
+}
 
 const server = new Server(
   {

@@ -1,5 +1,8 @@
 # AI-RULES — Freedom45
 
+## Hard Rules
+
+
 Soft guidelines for AI agents working in this repo.
 
 ## Suggestions
