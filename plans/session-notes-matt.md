@@ -100,3 +100,48 @@
 - Start Phase 1 of agent market analysis strategy: composite analysis tools
 - Session A: `analyzeValuation` + `analyzeRelativeStrength` + tests
 - See `plans/agent-market-analysis-strategy.md` for full roadmap
+
+## 2026-07-04 — Session A: First Composite Analysis Tools
+
+### Context
+- Started Phase 1 of the agent market analysis strategy.
+- Built the first two composite analysis tools: `analyzeValuation` and `analyzeRelativeStrength`.
+- These are the first tools that return a *judgment* (score + verdict), not just raw data.
+
+### Tools Built
+- **`analyzeValuation(ticker)`** — scores P/E, P/B, P/S, EV/EBITDA, dividend yield vs sector peer median. Returns 0-100 score with verdict (Undervalued/Fairly valued/Overvalued). Handles edge cases: negative earnings, < 3 peers, null metrics (redistributes weight).
+- **`analyzeRelativeStrength(ticker, benchmark, years)`** — computes alpha, beta, Sharpe ratio, max drawdown comparison, monthly outperformance %. Returns 0-100 score with verdict. Gracefully handles 403 (Finnhub free tier blocks candles) by returning "No data" verdict with explanatory note.
+
+### Supporting Work
+- **`lib/scoring.ts`** (new) — shared scoring utilities: `verdictFromScore`, `linearScale`, `median`, `redistributeWeights`, `weightedScore`. All composite tools will use these.
+- **`lib/calculations.ts`** (expanded) — added 4 new helpers: `calculateBeta`, `calculateAlpha`, `calculateSharpeRatio`, `calculateMonthlyOutperformance`. Pure functions, no API calls.
+- **`fetchFundamentalMetrics.ts`** (expanded) — now extracts 17 fields (was 7). Added: P/B, P/S, EV/EBITDA, dividend yield, ROA, gross margin, operating margin, revenue, net income, market cap. Fixed Finnhub field name mappings (`peTTM`, `pbAnnual`, `psTTM`, `evEbitdaTTM`, `currentDividendYieldTTM`, `revenueGrowthTTMYoy`).
+- **`test/shared/calculations.test.ts`** (new) — 45 unit tests for all calculation + scoring helpers. All pass. No API calls (mock data).
+- Test files for both new tools.
+- Updated `package.json` with `test:valuation`, `test:relative-strength`, `test:calcs` scripts. Extended `test:offline` to include calc tests.
+
+### Verification
+- `npm run build` — TypeScript compiles clean ✅
+- `npm run test:offline` — 22 tools registered, 45 calc tests pass, cache test passes ✅
+- `npm run test:valuation AAPL` — live: AAPL scores 34.3 ("Overvalued"). P/B (50.98) way above peer median (3.99), pulling score down. ✅
+- `npm run test:relative-strength AAPL SPY 5` — gracefully returns "No data" with 403 note (Finnhub free tier). Calculation engine verified via unit tests. ✅
+
+### Finnhub Field Name Discovery
+- Finnhub's `/stock/metric` endpoint uses different field names than expected:
+  - P/E: `peTTM` (not `peRatioTTM`)
+  - P/B: `pbAnnual` (not `pbRatioTTM`)
+  - P/S: `psTTM` (not `psRatioTTM`)
+  - EV/EBITDA: `evEbitdaTTM` (not `enterpriseValueEBITDATTM`)
+  - Dividend yield: `currentDividendYieldTTM` (not `dividendYieldTTM`)
+  - Revenue growth: `revenueGrowthTTMYoy` (not `revenueGrowthTTM`)
+  - Current ratio: `currentRatioQuarterly` (not `currentRatioTTM`)
+- Some fields (e.g. `totalDebtEquityTTM`) are not available on free tier; used fallback to `debtEquityAnnual`.
+
+### Current Tool Count
+- 22 long-analysis tools (20 fetch + 2 composite analysis) + 1 `get_congress_trades` = 23 total
+
+### Next Steps
+- Session B: `analyzeEarningsQuality` + `analyzeInsiderSentiment` + `analyzeAnalystConsensus`
+- Session C: `analyzeDividendHealth` + `analyzeFinancialHealth`
+- Session D: `scoreCompany` + `compareCompanies`
+- Session E: `buildThesis` (capstone)

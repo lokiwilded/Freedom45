@@ -48,18 +48,25 @@ This matches Loki's branch structure for easier merging later.
 - `calculateCorrelation(tickers, years)`
 
 ### Analysis
-- `analyzeLongTermTrend(ticker, years)`
-- `analyzeValuation(ticker)`
-- `analyzeRelativeStrength(ticker, benchmarkTicker, years)`
-- `scoreCompany(ticker)`
+- `analyzeLongTermTrend(ticker, years)` — ✅ done
+- `analyzeValuation(ticker)` — ✅ done (P/E, P/B, P/S, EV/EBITDA, dividend yield vs peer median; 0-100 score + verdict)
+- `analyzeRelativeStrength(ticker, benchmark, years)` — ✅ done (alpha, beta, Sharpe, drawdown, monthly outperformance; 0-100 score + verdict; gracefully handles 403)
+- `analyzeEarningsQuality(ticker)` — planned
+- `analyzeInsiderSentiment(ticker)` — planned
+- `analyzeAnalystConsensus(ticker)` — planned
+- `analyzeDividendHealth(ticker)` — planned
+- `analyzeFinancialHealth(ticker)` — planned
+- `scoreCompany(ticker)` — planned
+- `compareCompanies(tickers, metrics)` — planned
+- `buildThesis(ticker)` — planned
 
 ### Comparison / reporting
-- `compareCompanies(tickers, metrics)`
-- `buildSummaryReport(tickers)`
+- `compareCompanies(tickers, metrics)` — planned
+- `buildSummaryReport(tickers)` — planned
 
 ### Introspection
-- `getStoredTickers()`
-- `getDataCoverage(ticker)`
+- `getStoredTickers()` — planned
+- `getDataCoverage(ticker)` — planned
 
 ## Skill
 - File: `skills/company-fundamentals-analysis.md`
@@ -70,6 +77,8 @@ This matches Loki's branch structure for easier merging later.
   - "What is AAPL's risk-adjusted return vs SPY?"
 
 ## Next Steps
-1. Implement `fetchHistoricalPrices(ticker, years)`.
-2. Add a matching test in `mcp-server/src/test/`.
-3. Verify cache-by-date behavior.
+1. Build Session B: `analyzeEarningsQuality` + `analyzeInsiderSentiment` + `analyzeAnalystConsensus`.
+2. Build Session C: `analyzeDividendHealth` + `analyzeFinancialHealth`.
+3. Build Session D: `scoreCompany` + `compareCompanies`.
+4. Build Session E: `buildThesis` (capstone).
+5. See `plans/agent-market-analysis-strategy.md` for the full roadmap.
