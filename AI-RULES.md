@@ -4,16 +4,16 @@ Soft guidelines for AI agents working in this repo.
 
 ## Suggestions
 
-- Log ideas to `plans/` as `.md` files as you go — before or after implementing, just get them down
+- Log ideas to `plans/` as `.md` files as you go
 - Keep folder structure consistent across branches
 - When adding MCP tools, add a matching skill doc in `skills/`
-- Use `plans/` for brainstorming, `mcp-server/src/tools/` for actual code
-- Keep it simple — don't over-engineer, build what's needed
+- Use `plans/` for brainstorming, `mcp-server/src/tools/` for code
+- Keep it simple — build what's needed, nothing more
 
 ## Branching
 
-- `loki` — Loki's workspace
-- `matt` — Matt's workspace
-- `main` — combined later
+- **template** — shared foundation, start here
+- **main** — combined later
+- **<your-name>** — your personal workspace
 
 Push to your own branch. Merge to main when ready to combine.
