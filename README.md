@@ -1,141 +1,262 @@
-# Freedom45 – MCP Server for Trading & Investing Intelligence
+# Freedom45
 
-## Overview
-Freedom45 is a modular MCP (Micro‑Component Processor) server that powers a set of trading and investing intelligence tools.  Two independent workspaces are maintained within the same codebase:
+**A macro-liquidity research platform + trading-intelligence MCP server.**
 
-* **Loki** – focuses on congressional trading data with sophisticated outlier detection.
-* **Matt** – provides long‑term company profile analytics.
+Track how much money the world's central banks and governments have created, how much debt
+sits under every major economy, and how much the world's assets (stocks, indexes, gold)
+actually moved with it — then explore it in a live dashboard or query it from an AI assistant.
 
-Both toolsets share a common infrastructure (SQLite persistence, caching, Finnhub API wrappers) and expose their functionality via the generic MCP framework.
+### 🌐 Live dashboard → **https://lokiwilded.github.io/Freedom45/**
 
-## Quick Start
+The original question this answers: *"When money gets added, assets usually rise — by how
+much, historically?"* Freedom45 pulls the real series (central-bank balance sheets, money
+supply, sovereign + private debt, index/commodity history), stores them, and computes the
+movement — no hand-waving.
+
+---
+
+## Table of contents
+
+- [What's in the box](#whats-in-the-box)
+- [The dashboard](#the-dashboard)
+- [How data flows](#how-data-flows)
+- [Data sources](#data-sources)
+- [MCP tools](#mcp-tools)
+  - [Macro / liquidity](#macro--liquidity-6-tools)
+  - [Congressional trading](#congressional-trading)
+  - [Company & market analysis](#company--market-analysis-20-tools)
+- [REST API](#rest-api)
+- [Running it](#running-it)
+- [Refreshing data & deploying](#refreshing-data--deploying)
+- [Repo layout](#repo-layout)
+- [Honest caveats](#honest-caveats)
+
+---
+
+## What's in the box
+
+Three ways to use the same data:
+
+| Layer | What it is | Entry point |
+|---|---|---|
+| **MCP server** | 27 tools an AI assistant (Claude, etc.) can call | `mcp-server/src/index.ts` |
+| **REST API** | Read-only JSON over the macro tools | `mcp-server/src/http.ts` → `:8787` |
+| **Dashboard** | Vite + React + Recharts web app | `ui/` → GitHub Pages |
+
+Everything runs on **free** data sources (FRED, BIS, Yahoo Finance, DBnomics; Finnhub for the
+stock tools). Only FRED and Finnhub need a free API key.
+
+---
+
+## The dashboard
+
+A single-page, light/dark, mobile-friendly view of the whole picture:
+
+- **Hero tiles** — global central-bank liquidity, total US equity market cap, US total debt
+  (% of GDP), US M2, and the *reflexivity* ratio ($ of market cap gained per $1 of central-bank
+  liquidity added). Every tile has an **ⓘ info icon** explaining the term.
+- **"When money was added, what happened"** — the major QE episodes (QE1–3, COVID QE) plus one
+  tightening (QT), each showing how much liquidity went in over the window and how the S&P 500,
+  total US market cap, and gold responded. *e.g. COVID QE: +$10.1T → S&P +53%, US cap +48%.*
+- **"How much things move"** — a stat card per series (15 of them, grouped US / Europe / Asia /
+  Commodities / Macro): cumulative change over 1y / 5y / since-2003, annualized growth (CAGR),
+  volatility, best & worst 12 months, and % of up-years — all computed from full history.
+- **Debt by sector** — government + households + corporate, % of GDP, stacked, for 10 countries.
+
+In production it reads static JSON baked at build time (Pages can't run a server); in local dev
+it hits the live API.
+
+---
+
+## How data flows
+
+```
+ Sources                Providers              Store                Tools / API            Surfaces
+ ───────                ─────────              ─────                ───────────            ────────
+ FRED  ───┐            fred.ts      ┐                          ┌ 6 macro MCP tools ┐
+ BIS   ───┤──(HTTP)──▶ yahoo.ts     ├─▶  SQLite (stocks.db) ──▶┤ 21 stock MCP tools├─▶ MCP client (AI)
+ Yahoo ───┤            dbnomics.ts  │    macro_series          │                   │
+ DBnom ───┤            finnhub.ts   ┘    asset_series          └ REST /api/* ──────┼─▶ Dashboard (dev)
+ Finnhub ─┘                              + caches                 dump-static.ts ──┴─▶ Static JSON → Pages
+```
+
+On each call: check a 12-hour freshness marker → if stale, pull full history from the source
+and `INSERT OR REPLACE` into SQLite (captures new periods *and* upstream revisions) → read the
+window back → compute → return. Between refreshes everything is served locally.
+
+---
+
+## Data sources
+
+| Provider | Used for | Auth | Cadence |
+|---|---|---|---|
+| **FRED** | US M2, US debt, BIS credit, Fed/ECB/BOJ balance sheets, FX, US market cap | free key | daily→quarterly |
+| **BIS** (via FRED) | Debt by sector & country (`Q<CC><S>AM770A`) | — | quarterly |
+| **Yahoo Finance** | Index & commodity levels (S&P, Nasdaq, DAX, Nikkei, gold, …) | none | monthly |
+| **DBnomics** | Foreign broad money (IMF IFS) where FRED is discontinued | none | monthly |
+| **Finnhub** | Congressional trades + company/market data (stock tools) | free key | realtime→daily |
+
+---
+
+## MCP tools
+
+The server auto-discovers every tool and exposes it over MCP (stdio). **27 tools** in three
+families.
+
+### Macro / liquidity (6 tools)
+
+| Tool | What it returns |
+|---|---|
+| `get_global_liquidity` | Fed + ECB + BOJ balance sheets summed in USD, monthly (the "money printing" measure). ~$17.8T, +582% since 2003. |
+| `get_money_supply` | Broad money (M2) by country in **native + USD**. US (FRED); JP/KR/AU (DBnomics), FX-converted per month. |
+| `get_debt` | Debt by sector — government / households / corporate / private / total — **% of GDP**, 13 countries (BIS). |
+| `get_government_debt` | US total public debt in absolute USD (FRED `GFDEBTN`). |
+| `get_asset_history` | Index & commodity levels (16 assets: SP500, NASDAQ, DOW, FTSE, DAX, ESTOXX50, CAC40, NIKKEI, HANGSENG, SHANGHAI, KOSPI, ASX200, TSX, GOLD, SILVER) + true US equity market cap (Fed Z.1). |
+| `get_liquidity_elasticity` | How an asset moves with a liquidity driver — a **levels ratio** ($-per-$, arc elasticity) and a **YoY regression** (β, R², lag scan, what-if). |
+
+### Congressional trading
+
+| Tool | What it returns |
+|---|---|
+| `get_congress_trades` | US House/Senate trades with an **outlier score (0–100)**, live prices, market cap, and viability assessment. Rich filters (chamber, party, ticker, market-cap band, min score). |
+
+### Company & market analysis (20 tools)
+
+Finnhub-backed equity research, all cached in SQLite:
+
+`fetch_company_profile` · `fetch_stock_quote` · `fetch_historical_prices` ·
+`fetch_fundamental_metrics` · `fetch_peers` · `analyze_long_term_trend` · `search_stocks` ·
+`get_insider_transactions` · `get_company_news` · `get_market_news` · `get_earnings_calendar` ·
+`get_earnings_surprise` · `get_recommendation_trends` · `get_price_target` ·
+`get_upgrade_downgrade` · `get_dividends` · `get_splits` · `get_sec_filings` ·
+`get_institutional_ownership` · `get_fund_ownership`
+
+---
+
+## REST API
+
+Read-only JSON on `http://localhost:8787` (`npm run serve` in `mcp-server`). The dashboard uses
+these; you can curl them too.
+
+| Endpoint | Returns |
+|---|---|
+| `GET /api/overview` | Bundled hero numbers (one round-trip) |
+| `GET /api/stats` | Movement stats for all 15 dashboard series |
+| `GET /api/injections` | The QE/QT episodes + asset responses |
+| `GET /api/liquidity` | Global CB liquidity time series |
+| `GET /api/money-supply?country=US` | M2 series (native + USD) |
+| `GET /api/debt?country=US&sector=total` | Debt series + sector breakdown |
+| `GET /api/assets?asset=SP500` | Asset/index history |
+| `GET /api/elasticity?driver=global_liquidity&asset=SP500` | Elasticity levels + regression |
+| `GET /api/health` | Liveness check |
+
+---
+
+## Running it
+
+**Requirements:** Node.js 22+ (uses the built-in `node:sqlite`), a free
+[FRED API key](https://fred.stlouisfed.org/docs/api/api_key.html), and (for the stock tools) a
+free [Finnhub key](https://finnhub.io).
+
 ```bash
-# Clone the repository and move into the MCP server package
 git clone https://github.com/lokiwilded/Freedom45.git
 cd Freedom45
-cd mcp-server
 
-# Install dependencies
-npm install
+# keys
+cp .env.example .env      # then edit:  FRED_API_KEY=...   FINNHUB_API_KEY=...
 
-# Provide your Finnhub API key (free tier available at https://finnhub.io)
-echo "FINNHUB_API_KEY=your_key_here" > ../.env
-
-# Start the server
-npx tsx src/index.ts
+cd mcp-server && npm install
 ```
 
-> **⚠️ Production warning** – Running the MCP server in a public Git repository that is routinely pushed to can accidentally expose the Finnhub key or real‑time data to end‑users.  Ensure the `.env` file is excluded via `.gitignore` and never commit it.
+**As an MCP server** (e.g. Claude Desktop `claude_desktop_config.json`):
 
-## Available Tools
-The MCP server auto‑discovers all tools in `src/tools`.  Below is a snapshot of the two primary tool families.
+```json
+{
+  "mcpServers": {
+    "freedom45": {
+      "command": "npx",
+      "args": ["tsx", "ABSOLUTE/PATH/TO/Freedom45/mcp-server/src/index.ts"],
+      "env": { "FRED_API_KEY": "your_key", "FINNHUB_API_KEY": "your_key" }
+    }
+  }
+}
+```
 
-### `get_congress_trades`
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `symbol` | Stock symbol to query (e.g., **AAPL**) | `"AAPL"` |
-| `days_back` | Number of days in the past to look for trades | `90` |
-| `chamber` | House (`h`) or Senate (`s`) | `"h"` |
-| `party` | Congressman party filter (`d`, `r`, or undefined) | `"d"` |
-| `outlier_score_min` | Minimum outlier score to surface (0‑100) | `30` |
-| `market_cap_max` | Upper bound on company market‑cap (USD) | `1e12` |
-| `market_cap_min` | Lower bound on company market‑cap (USD) | `1e6` |
-| `excluded_tickers` / `included_tickers` | Blacklist / whitelist of symbols | `["TSLA"]` |
-| `include_live_price` | Whether to fetch the current price of each ticker | `true` |
-
-| What the tool returns | Overview |
-|-----------------------|----------|
-| `live_price` | Latest market price from Finnhub | `$162.34` |
-| `market_cap` | Current market value of the company | `$2.5T` |
-| `outlier_score` | 0‑100 score representing how unusual the trade is (higher = more suspicious) | `78` |
-| `viability` | Generic assessment (`viable`, `caution`, `too_far`, `unknown`) | `viable` |
-| `viability_reason` | Short explanation of the assessment | `Insufficient data` |
-| `outlier_label` | Convenience label (`low`, `medium`, `high`, `very_high`) | `high` |
-
----
-
-### `fetch_company_profile`
-| Parameter | Description | Example |
-|-----------|-------------|---------|
-| `ticker` | Target ticker for the profile lookup | `"AAPL"` |
-
-| What the tool returns | Overview |
-|-----------------------|----------|
-| `name`, `sector`, `industry` | Basic company identifiers | `Apple Inc.`, `Information Technology`, `Consumer Electronics` |
-| `market_cap` | Current market value | `$2.3T` |
-| `description` | Company overview from Finnhub | `Apple designs, manufactures…` |
-| `financials` | Summary of key financial metrics | `Revenue: $365B`, `EBITDA: $110B` |
-
-The tool supports a two‑tier cache:
-
-1. **`companies` table** – Persisted per‑ticker metadata.
-2. **TTL cache (`api_cache` table)** – Short‑lived snapshots of the full profile.
-
-## Outlier Scoring Engine
-The scoring engine (`src/scoring/outlier.ts`) evaluates each trade on a 0‑100 scale, broken down into five factors:
-
-| Factor | Weight |
-|--------|--------|
-| Market‑cap alignment | 0‑20 |
-| Trade size percentage | 0‑25 |
-| Buy vs. sell bias | 0‑25 |
-| Consensus alignment | 0‑15 |
-| Recency penalty | 0‑15 |
-
-The resultant score is mapped to a label:
-
-| Score Range | Label |
-|-------------|-------|
-| 0‑24 | `low` |
-| 25‑49 | `medium` |
-| 50‑74 | `high` |
-| 75‑100 | `very_high` |
-
-A higher score indicates a more anomalous trade that warrants deeper investigation.
-
-## Testing
-All tests live under `src/test/`.  Run them with the following NPM scripts.
+**As the dashboard** (two terminals):
 
 ```bash
-# Congress trade test with outlier scoring (default ticker AAPL)
-npm run test:congress
-# or a custom ticker
-npm run test:congress -- NVDA
+# 1) API  (mcp-server/)
+npm run serve                 # http://localhost:8787
 
-# Company profile test
-npm run test:profile
-
-# Cache‑only test
-npm run test:cache
+# 2) UI   (ui/)
+npm install                   # first time
+npm run dev                   # http://localhost:5173  (proxies /api → :8787)
 ```
 
-The tests use a temporary `.env` file in the repository root.  Make sure `FINNHUB_API_KEY` is present before running.
-
-## Branches
-* **`loki`** – Current playground for outlier detection and congressional trading.  All commits target these frameworks.
-* **`main`** – Long‑term integration of Marcus‑style company‑profile analysis.
-* **`template`** – Base project scaffolding used for new servers.
-
-The `loki` branch is the authoritative source for `get_congress_trades`; the `main` branch will eventually merge tools from both sides.
-
-## Environment & Dependencies
-| Item | Requirement |
-|------|-------------|
-| **Node.js** | 22+ (ES modules, built‑in `node:sqlite`) |
-| **Finnhub API key** | Free tier subscription at https://finnhub.io |
-| **SQLite** | Stored in `src/db.ts`; no external server required |
-| **Dependencies** | Listed in `package.json`; run `npm install` |
-
-## Contribution Guidelines
-1. Fork and clone the repo.
-2. Create a branch off `loki` or `main` depending on your work.
-3. Run `npm install`.  Familiarize yourself with the test harness.
-4. Write or modify tools, then add / update tests in `src/test/`.
-5. Commit with clear subject lines and run `npm run test` before pushing.
-6. Open a PR; ensure all tests pass locally and the commit diff is minimal.
-
-**Important**: Never commit `.env` files or any sensitive keys.  Use the provided `.env.example` template.
+**Quick tool tests** (from `mcp-server/`): `npm run test:liquidity`, `test:debt`,
+`test:assets`, `test:macro`, `test:elasticity`, `test:congress`.
 
 ---
 
-For full usage details of each tool, refer to the corresponding documentation in `skills/`.
+## Refreshing data & deploying
+
+The live site serves a **static snapshot** (Pages can't run Node). Data is monthly/quarterly,
+so refreshing occasionally is plenty:
+
+```bash
+cd mcp-server
+npm run dump-static           # regenerates ui/public/data/*.json (needs FRED_API_KEY + network)
+cd ..
+git add ui/public/data && git commit -m "chore: refresh data" && git push
+```
+
+Every push to `loki`/`main` runs `.github/workflows/deploy.yml`, which builds `ui/` and
+publishes to GitHub Pages automatically.
+
+---
+
+## Repo layout
+
+```
+Freedom45/
+├── mcp-server/
+│   └── src/
+│       ├── index.ts              # MCP server (auto-discovers tools)
+│       ├── http.ts               # REST server (node:http)
+│       ├── api-handlers.ts       # route logic (shared by server + dump)
+│       ├── db.ts                 # SQLite (node:sqlite) — macro_series, asset_series, …
+│       ├── providers/            # fred, yahoo, dbnomics, finnhub
+│       ├── tools/macro/          # the 6 macro tools
+│       ├── tools/long-analysis/  # the 20 company tools
+│       ├── tools/get-congress-trades.ts
+│       ├── scoring/              # outlier + series-stats + elasticity math
+│       └── scripts/dump-static.ts
+├── ui/                           # Vite + React + Recharts dashboard
+│   ├── src/                      # App, charts, components, api, theme
+│   └── public/data/              # baked JSON snapshot (committed, served on Pages)
+├── skills/                       # tool docs (macro-liquidity.md, …)
+├── plans/                        # design notes & roadmap
+└── .github/workflows/deploy.yml  # Pages deploy
+```
+
+---
+
+## Honest caveats
+
+These are the real edges of the data, surfaced so nothing implies false precision:
+
+- **Foreign M2 is thin** — only US/JP/KR/AU have clean current series; the euro area, UK and
+  China don't (no free source). `get_debt` (BIS total credit) is the fuller cross-country lens.
+- **Global liquidity = Fed + ECB + BOJ** — the free/clean maximum; FRED carries current
+  balance-sheet *levels* only for these three.
+- **"US market cap" is the whole US market** (Fed Z.1), broader than the S&P 500; quarterly.
+- **Index history depth** — monthly levels start ~1985 (indexes) / 2000 (metals).
+- **Correlation, not causation** — the levels ratio ($3.85 of cap per $1 liquidity) is
+  trend-dominated and descriptive; the year-over-year regression is deliberately the honest
+  short-run test, and it's weak (central banks ease *into* crashes). Both views are shown on
+  purpose. This is research tooling, not investment advice.
+
+---
+
+*Branches: `loki` (active — macro dashboard + outlier detection), `main` (combined),
+`template` (scaffold). Never commit `.env` or `node_modules/`.*
