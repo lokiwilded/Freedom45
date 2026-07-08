@@ -4,8 +4,8 @@ dist/
 *.log
 .DS_Store
 
-# SQLite databases
-data/
+# SQLite databases (mcp-server only — NOT ui/public/data, which is the baked Pages snapshot)
+mcp-server/data/
 
 # Local AI config
 .opencode/

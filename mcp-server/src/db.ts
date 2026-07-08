@@ -124,6 +124,38 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_cache_expires ON api_cache(expires_at);
+
+  -- Macro time series (liquidity/macro dashboard — append-only)
+  -- indicator: 'M2' | 'DEBT' | 'CB_ASSETS' | 'FX_USD'
+  -- value is in native units (see unit); value_usd is filled when known/converted.
+  CREATE TABLE IF NOT EXISTS macro_series (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    country TEXT,          -- ISO code or 'GLOBAL'
+    currency TEXT,         -- USD, EUR, CNY, ...
+    indicator TEXT,        -- M2 | DEBT | CB_ASSETS | FX_USD
+    date TEXT,             -- YYYY-MM-DD
+    value REAL,            -- native units
+    value_usd REAL,        -- converted to USD when applicable
+    unit TEXT,
+    source TEXT,
+    UNIQUE(country, indicator, date, source)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_macro_lookup ON macro_series(country, indicator, source, date);
+
+  -- Asset time series (index levels, commodity prices, market caps — append-only)
+  CREATE TABLE IF NOT EXISTS asset_series (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    asset TEXT,            -- SP500 | FTSE | GOLD | SILVER ...
+    metric TEXT,           -- level | market_cap
+    date TEXT,             -- YYYY-MM-DD
+    value REAL,
+    currency TEXT,
+    source TEXT,
+    UNIQUE(asset, metric, date, source)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_asset_lookup ON asset_series(asset, metric, source, date);
 `);
 
 export { db };

@@ -6,8 +6,10 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { finnhubProvider } from "./providers/finnhub.js";
+import { fredProvider } from "./providers/fred.js";
 import { getCongressTradesTool } from "./tools/get-congress-trades.js";
 import { longAnalysisTools } from "./tools/long-analysis/index.js";
+import { macroTools } from "./tools/macro/index.js";
 
 // Initialize Finnhub provider (API key from env)
 const finnhubApiKey = process.env.FINNHUB_API_KEY;
@@ -15,6 +17,14 @@ if (finnhubApiKey) {
   finnhubProvider.init(finnhubApiKey);
 } else {
   console.error("Warning: FINNHUB_API_KEY not set. Tools that use Finnhub will fail.");
+}
+
+// Initialize FRED provider (API key from env)
+const fredApiKey = process.env.FRED_API_KEY;
+if (fredApiKey) {
+  fredProvider.init(fredApiKey);
+} else {
+  console.error("Warning: FRED_API_KEY not set. Macro tools will fail.");
 }
 
 // Tool registry — all tools from all categories
@@ -48,6 +58,9 @@ const tools: Record<string, { name: string; description: string; inputSchema: an
 
 // Auto-discover tools from subdirectories
 for (const tool of longAnalysisTools) {
+  tools[tool.name] = tool;
+}
+for (const tool of macroTools) {
   tools[tool.name] = tool;
 }
 
