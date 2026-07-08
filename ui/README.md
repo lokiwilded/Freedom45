@@ -27,6 +27,24 @@ Then open **http://localhost:5173**. Vite proxies `/api/*` to the API on :8787, 
   best/worst 12 months, and % up-years. Computed from full history (`/api/stats`), auto-updating.
 - **Debt by sector** — government / households / corporate, % of GDP, stacked, by country (BIS).
 
+## Live site & deploy
+
+**https://lokiwilded.github.io/Freedom45/**
+
+GitHub Pages can't run the Node API, so the site reads **baked static JSON** from
+`ui/public/data/` (committed). In dev the app uses the live API; in the production build it
+reads those files (`import.meta.env.PROD`). `.github/workflows/deploy.yml` builds `ui/` and
+publishes to Pages on every push to `loki`/`main`.
+
+**Refresh the data** (monthly/quarterly is plenty), then push to auto-deploy:
+
+```bash
+cd mcp-server
+npm run dump-static     # regenerates ui/public/data/*.json (needs FRED_API_KEY + network)
+cd ..
+git add ui/public/data && git commit -m "chore: refresh dashboard data" && git push
+```
+
 ## Notes
 
 - The debt chart uses the validated dataviz palette (light + dark, follows the OS theme).
