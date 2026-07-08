@@ -23,6 +23,8 @@ import { getSplitsTool } from "./getSplits.js";
 import { getSecFilingsTool } from "./getSecFilings.js";
 import { getInstitutionalOwnershipTool } from "./getInstitutionalOwnership.js";
 import { getFundOwnershipTool } from "./getFundOwnership.js";
+import { analyzeValuationTool } from "./analyzeValuation.js";
+import { analyzeRelativeStrengthTool } from "./analyzeRelativeStrength.js";
 
 export const longAnalysisTools = [
   fetchCompanyProfileTool,
@@ -45,4 +47,6 @@ export const longAnalysisTools = [
   getSecFilingsTool,
   getInstitutionalOwnershipTool,
   getFundOwnershipTool,
+  analyzeValuationTool,
+  analyzeRelativeStrengthTool,
 ];

@@ -16,12 +16,22 @@ export type FetchFundamentalMetricsInput = z.infer<typeof FetchFundamentalMetric
 export interface FundamentalMetricsResult {
   ticker: string;
   peRatioTTM: number | null;
+  pbRatioTTM: number | null;
+  psRatioTTM: number | null;
   epsTTM: number | null;
   roeTTM: number | null;
+  roaTTM: number | null;
   profitMarginTTM: number | null;
+  grossMarginTTM: number | null;
+  operatingMarginTTM: number | null;
   revenueGrowthTTM: number | null;
   debtEquityTTM: number | null;
   currentRatioTTM: number | null;
+  dividendYieldTTM: number | null;
+  enterpriseValueEBITDATTM: number | null;
+  revenueTTM: number | null;
+  netIncomeTTM: number | null;
+  marketCapTTM: number | null;
   fetchedAt: string;
   fromCache: boolean;
 }
@@ -49,13 +59,23 @@ export async function fetchFundamentalMetrics(ticker: string): Promise<Fundament
 
   const result: FundamentalMetricsResult = {
     ticker: normalizedTicker,
-    peRatioTTM: safeNumber(metrics.peRatioTTM),
+    peRatioTTM: safeNumber(metrics.peTTM),
+    pbRatioTTM: safeNumber(metrics.pbAnnual),
+    psRatioTTM: safeNumber(metrics.psTTM),
     epsTTM: safeNumber(metrics.epsTTM),
     roeTTM: safeNumber(metrics.roeTTM),
+    roaTTM: safeNumber(metrics.roaTTM),
     profitMarginTTM: safeNumber(metrics.netProfitMarginTTM),
-    revenueGrowthTTM: safeNumber(metrics.revenueGrowthTTM),
-    debtEquityTTM: safeNumber(metrics.totalDebtEquityTTM),
-    currentRatioTTM: safeNumber(metrics.currentRatioTTM),
+    grossMarginTTM: safeNumber(metrics.grossMarginTTM),
+    operatingMarginTTM: safeNumber(metrics.operatingMarginTTM),
+    revenueGrowthTTM: safeNumber(metrics.revenueGrowthTTMYoy),
+    debtEquityTTM: safeNumber(metrics.totalDebtEquityTTM) ?? safeNumber(metrics.debtEquityAnnual),
+    currentRatioTTM: safeNumber(metrics.currentRatioTTM) ?? safeNumber(metrics.currentRatioQuarterly),
+    dividendYieldTTM: safeNumber(metrics.currentDividendYieldTTM),
+    enterpriseValueEBITDATTM: safeNumber(metrics.evEbitdaTTM),
+    revenueTTM: safeNumber(metrics.revenuePerShareTTM),
+    netIncomeTTM: safeNumber(metrics.netIncomeEmployeeTTM),
+    marketCapTTM: safeNumber(metrics.marketCapitalization),
     fetchedAt: new Date().toISOString(),
     fromCache,
   };
@@ -69,13 +89,17 @@ export async function fetchFundamentalMetrics(ticker: string): Promise<Fundament
   );
 
   const now = new Date().toISOString();
-  upsert.run(normalizedTicker, "peRatioTTM", result.peRatioTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "epsTTM", result.epsTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "roeTTM", result.roeTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "profitMarginTTM", result.profitMarginTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "revenueGrowthTTM", result.revenueGrowthTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "debtEquityTTM", result.debtEquityTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "currentRatioTTM", result.currentRatioTTM, "ttm", "finnhub", now);
+  const fields = [
+    "peRatioTTM", "pbRatioTTM", "psRatioTTM", "epsTTM",
+    "roeTTM", "roaTTM", "profitMarginTTM", "grossMarginTTM",
+    "operatingMarginTTM", "revenueGrowthTTM", "debtEquityTTM",
+    "currentRatioTTM", "dividendYieldTTM", "enterpriseValueEBITDATTM",
+    "revenueTTM", "netIncomeTTM", "marketCapTTM",
+  ] as const;
+  for (const field of fields) {
+    const value: number | null = result[field];
+    upsert.run(normalizedTicker, field, value ?? null, "ttm", "finnhub", now);
+  }
 
   return result;
 }
