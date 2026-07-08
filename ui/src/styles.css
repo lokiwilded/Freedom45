@@ -69,6 +69,37 @@ select, .toggle {
 .section-head h2 { font-size: 18px; margin: 0 0 4px; letter-spacing: -.01em; }
 .i-inline { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--muted); color: var(--muted); font-size: 10px; font-style: italic; font-weight: 700; vertical-align: middle; }
 
+/* reflexivity explainer */
+.reflex { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px 20px 18px; box-shadow: var(--shadow); margin-bottom: 26px; }
+.reflex .section-head { margin: 0 0 14px; }
+.reflex .note strong { color: var(--accent); }
+.reflex-calc { display: flex; align-items: stretch; gap: 14px; flex-wrap: wrap; }
+.reflex-side { flex: 1 1 200px; min-width: 0; background: var(--page); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 9px; }
+.reflex-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.reflex-amount { font-size: 30px; font-weight: 700; display: flex; align-items: baseline; letter-spacing: -.01em; }
+.reflex-amount input { width: 2.8em; font: inherit; font-weight: 700; background: transparent; border: none; border-bottom: 2px solid var(--accent); color: var(--ink); text-align: center; -moz-appearance: textfield; }
+.reflex-amount input::-webkit-outer-spin-button, .reflex-amount input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.reflex-range { width: 100%; accent-color: var(--accent); }
+.reflex-presets { display: flex; gap: 6px; }
+.reflex-presets button { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 5px; font-size: 12px; color: var(--secondary); cursor: pointer; font-family: var(--font); }
+.reflex-presets button.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.reflex-presets button:hover { border-color: var(--accent); }
+.reflex-op { align-self: center; font-size: 22px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.reflex-out .reflex-result { font-size: 34px; font-weight: 750; color: var(--up); letter-spacing: -.02em; }
+.reflex-out .reflex-sub { font-size: 12px; color: var(--secondary); }
+.reflex-bars { margin: 16px 0 4px; display: flex; flex-direction: column; gap: 8px; }
+.reflex-bar { display: grid; grid-template-columns: 96px 1fr 62px; align-items: center; gap: 10px; }
+.reflex-bar-l { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.reflex-track { background: var(--page); border: 1px solid var(--border); border-radius: 6px; height: 22px; overflow: hidden; }
+.reflex-fill { height: 100%; border-radius: 5px 0 0 5px; transition: width .25s ease; }
+.reflex-fill.printed { background: var(--muted); }
+.reflex-fill.market { background: var(--accent); }
+.reflex-bar-v { font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; }
+.reflex-foot { font-size: 12.5px; color: var(--secondary); margin: 13px 0 0; line-height: 1.5; }
+.reflex-foot .reflex-warn { color: var(--muted); }
+@media (max-width: 560px) { .reflex-op { transform: rotate(90deg); align-self: center; } }
+@media (prefers-reduced-motion: reduce) { .reflex-fill { transition: none; } }
+
 /* info dot */
 .info-wrap { position: relative; display: inline-flex; margin-left: 5px; vertical-align: middle; }
 .info-dot { width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--muted); background: transparent; color: var(--muted); font-size: 10px; font-style: italic; font-weight: 700; line-height: 1; cursor: help; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-family: Georgia, "Times New Roman", serif; }

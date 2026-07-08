@@ -85,6 +85,68 @@ export function InjectionCard({ e }: { e: Injection }) {
   );
 }
 
+/** Interactive reflexivity explainer: money printed × historical multiplier = market-cap impact. */
+export function ReflexivityExplainer({ multiplier }: { multiplier: number }) {
+  const [amount, setAmount] = useState(1); // $ trillions
+  const impact = amount * multiplier;
+  const printedPct = Math.max(6, (1 / multiplier) * 100); // width of "printed" bar vs "reaches market"
+  const set = (v: number) => setAmount(Math.min(10, Math.max(0.5, Math.round(v * 2) / 2)));
+
+  return (
+    <section className="reflex">
+      <div className="section-head">
+        <h2>The reflexivity multiplier</h2>
+        <p className="note">
+          Money isn't poured into a fixed pool — one buyer at a higher price re-rates <em>every</em> share.
+          So historically, each $1 the major central banks create has coincided with about
+          <strong> ${multiplier}</strong> of market-cap gain. Try an amount:
+        </p>
+      </div>
+
+      <div className="reflex-calc">
+        <div className="reflex-side">
+          <span className="reflex-lbl">Money created</span>
+          <div className="reflex-amount">$<input type="number" min={0.5} max={10} step={0.5} value={amount}
+            onChange={(e) => set(Number(e.target.value))} aria-label="Trillions created" />T</div>
+          <input className="reflex-range" type="range" min={0.5} max={10} step={0.5} value={amount}
+            onChange={(e) => set(Number(e.target.value))} aria-label="Money created slider" />
+          <div className="reflex-presets">
+            {[1, 3, 5].map((p) => (
+              <button key={p} type="button" className={amount === p ? "on" : ""} onClick={() => setAmount(p)}>${p}T</button>
+            ))}
+          </div>
+        </div>
+
+        <div className="reflex-op">×{multiplier}</div>
+
+        <div className="reflex-side reflex-out">
+          <span className="reflex-lbl">Expected to reach the market</span>
+          <div className="reflex-result">${impact.toFixed(2)}T</div>
+          <span className="reflex-sub">added to market cap</span>
+        </div>
+      </div>
+
+      <div className="reflex-bars">
+        <div className="reflex-bar">
+          <span className="reflex-bar-l">Printed</span>
+          <div className="reflex-track"><div className="reflex-fill printed" style={{ width: `${printedPct}%` }} /></div>
+          <span className="reflex-bar-v">${amount.toFixed(1)}T</span>
+        </div>
+        <div className="reflex-bar">
+          <span className="reflex-bar-l">Reaches market</span>
+          <div className="reflex-track"><div className="reflex-fill market" style={{ width: "100%" }} /></div>
+          <span className="reflex-bar-v">${impact.toFixed(1)}T</span>
+        </div>
+      </div>
+
+      <p className="reflex-foot">
+        Then it's just a question of <em>where it lands</em> — how much flows to US stocks vs. Europe, Asia,
+        gold or debt. The sections below show how each actually moved. <span className="reflex-warn">Descriptive history, trend-dominated — not a guarantee.</span>
+      </p>
+    </section>
+  );
+}
+
 export function Tile({ label, value, sub, up, accent, info }: {
   label: string; value: string; sub: string; up?: boolean; accent?: boolean; info?: string;
 }) {

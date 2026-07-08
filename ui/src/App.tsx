@@ -3,7 +3,7 @@ import { api } from "./api";
 import type { Overview, StatsSeries, SeriesPoint, Injection } from "./api";
 import { useTheme } from "./theme";
 import { DebtStack } from "./charts";
-import { Tile, SeriesStatCard, InjectionCard } from "./components";
+import { Tile, SeriesStatCard, InjectionCard, ReflexivityExplainer } from "./components";
 
 const GROUP_ORDER = ["Macro", "US", "Europe", "Asia", "Commodity"];
 
@@ -78,6 +78,9 @@ export default function App() {
       </header>
 
       {err && <div className="err">Couldn't reach the API ({err}). Is it running on :8787? Run <code>npm run serve</code> in mcp-server.</div>}
+
+      {/* REFLEXIVITY EXPLAINER */}
+      <ReflexivityExplainer multiplier={lv?.dollarsPerDollar ?? 3.85} />
 
       {/* HERO SNAPSHOT */}
       <section className="tiles">
