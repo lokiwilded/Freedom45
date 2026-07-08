@@ -117,8 +117,10 @@ export const routes: Record<string, Handler> = {
     return {
       episodes: episodes.map((e) => {
         const a = after(liqArr, e.start), b = before(liqArr, e.end);
+        const months = Math.round((Date.parse(e.end) - Date.parse(e.start)) / (30.44 * 864e5));
         return {
           ...e,
+          months,
           liquidityAddedTrillions: a != null && b != null ? r1((b - a) / 1e12) : null,
           liquidityChangePct: chg(liqArr, e.start, e.end),
           sp500Pct: chg(spArr, e.start, e.end),
@@ -126,6 +128,55 @@ export const routes: Record<string, Handler> = {
           goldPct: chg(goldArr, e.start, e.end),
         };
       }),
+    };
+  },
+
+  // The full, auditable derivation of the reflexivity multiplier — every intermediate number.
+  "/api/reflexivity": async () => {
+    const [liq, mc] = await Promise.all([getGlobalLiquidity(), getAssetHistory("US_MKTCAP")]);
+    const liqData = (liq as any).data as { date: string; total_usd: number; components: Record<string, number> }[];
+    const mcData = (mc as any).data as { date: string; value: number }[]; // millions USD
+
+    // Common window: months where BOTH the liquidity total and the market-cap figure exist.
+    const mcMap = new Map(mcData.map((d) => [d.date, d.value]));
+    const common = liqData.filter((d) => mcMap.has(d.date));
+    const first = common[0]!, last = common[common.length - 1]!;
+
+    const liqStart = first.total_usd, liqEnd = last.total_usd;
+    const capStart = mcMap.get(first.date)! * 1e6, capEnd = mcMap.get(last.date)! * 1e6;
+    const addedLiq = liqEnd - liqStart, addedCap = capEnd - capStart;
+    const multiplier = addedCap / addedLiq;
+
+    const T = (x: number) => Number((x / 1e12).toFixed(2));
+    const pct = (a: number, b: number) => Number(((b / a - 1) * 100).toFixed(1));
+    const years = Number(((Date.parse(last.date) - Date.parse(first.date)) / (365.25 * 864e5)).toFixed(1));
+
+    const banks = (liq as any).banks as { country: string; label: string; currency: string; seriesId: string }[];
+    const bankRows = banks.map((b) => ({
+      label: b.label, currency: b.currency, seriesId: b.seriesId,
+      startT: T((first.components[b.country] ?? 0)), endT: T((last.components[b.country] ?? 0)),
+    }));
+
+    return {
+      multiplier: Number(multiplier.toFixed(2)),
+      window: { from: first.date, to: last.date, years },
+      liquidity: {
+        what: "Combined balance sheets of the Fed, ECB and Bank of Japan, each converted to USD.",
+        source: "FRED — WALCL (Fed), ECBASSETSW (ECB), JPNASSETS (BOJ); FX via DEXUSEU, DEXJPUS",
+        startDate: first.date, endDate: last.date,
+        startTrillions: T(liqStart), endTrillions: T(liqEnd), addedTrillions: T(addedLiq), changePct: pct(liqStart, liqEnd),
+        banks: bankRows,
+      },
+      marketCap: {
+        what: "Total market value of all US corporate equities (broader than the S&P 500).",
+        source: "FRED Z.1 — NCBEILQ027S (nonfinancial corporate equities, market value)",
+        startDate: first.date, endDate: last.date,
+        startTrillions: T(capStart), endTrillions: T(capEnd), addedTrillions: T(addedCap), changePct: pct(capStart, capEnd),
+      },
+      ratio: {
+        formula: "market-cap added ÷ liquidity added",
+        addedCapTrillions: T(addedCap), addedLiqTrillions: T(addedLiq), value: Number(multiplier.toFixed(2)),
+      },
     };
   },
 

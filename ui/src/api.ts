@@ -15,6 +15,7 @@ const staticPath: Record<string, (q: URLSearchParams) => string> = {
   "/api/overview": () => "data/overview.json",
   "/api/stats": () => "data/stats.json",
   "/api/injections": () => "data/injections.json",
+  "/api/reflexivity": () => "data/reflexivity.json",
   "/api/debt": (q) => `data/debt-${q.get("country")}-${q.get("sector")}.json`,
 };
 
@@ -64,14 +65,23 @@ export interface StatsSeries {
   latestDate: string | null; displayLatest: string; stats: SeriesStatsT | null;
 }
 export interface Injection {
-  label: string; note: string; start: string; end: string; kind: "inject" | "drain";
+  label: string; note: string; start: string; end: string; kind: "inject" | "drain"; months: number;
   liquidityAddedTrillions: number | null; liquidityChangePct: number | null;
   sp500Pct: number | null; marketCapPct: number | null; goldPct: number | null;
+}
+export interface BankRow { label: string; currency: string; seriesId: string; startT: number; endT: number }
+export interface Reflexivity {
+  multiplier: number;
+  window: { from: string; to: string; years: number };
+  liquidity: { what: string; source: string; startDate: string; endDate: string; startTrillions: number; endTrillions: number; addedTrillions: number; changePct: number; banks: BankRow[] };
+  marketCap: { what: string; source: string; startDate: string; endDate: string; startTrillions: number; endTrillions: number; addedTrillions: number; changePct: number };
+  ratio: { formula: string; addedCapTrillions: number; addedLiqTrillions: number; value: number };
 }
 
 export const api = {
   overview: () => route<Overview>("/api/overview"),
   stats: () => route<{ series: StatsSeries[] }>("/api/stats"),
   injections: () => route<{ episodes: Injection[] }>("/api/injections"),
+  reflexivity: () => route<Reflexivity>("/api/reflexivity"),
   debt: (country: string, sector: string) => route<DebtResp>("/api/debt", { country, sector }),
 };

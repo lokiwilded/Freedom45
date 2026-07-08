@@ -33,6 +33,7 @@ async function main() {
   await write("overview", await call("/api/overview"));
   await write("stats", await call("/api/stats"));
   await write("injections", await call("/api/injections"));
+  await write("reflexivity", await call("/api/reflexivity"));
 
   for (const country of DEBT_COUNTRIES) {
     for (const sector of SECTORS) {

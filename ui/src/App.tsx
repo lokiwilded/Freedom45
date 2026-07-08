@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
-import type { Overview, StatsSeries, SeriesPoint, Injection } from "./api";
+import type { Overview, StatsSeries, SeriesPoint, Injection, Reflexivity } from "./api";
 import { useTheme } from "./theme";
 import { DebtStack } from "./charts";
 import { Tile, SeriesStatCard, InjectionCard, ReflexivityExplainer } from "./components";
@@ -35,6 +35,7 @@ export default function App() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [stats, setStats] = useState<StatsSeries[]>([]);
   const [injections, setInjections] = useState<Injection[]>([]);
+  const [refl, setRefl] = useState<Reflexivity | null>(null);
   const [country, setCountry] = useState("US");
   const [debtRows, setDebtRows] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -42,10 +43,11 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const [ov, st, inj] = await Promise.all([api.overview(), api.stats(), api.injections()]);
+        const [ov, st, inj, rf] = await Promise.all([api.overview(), api.stats(), api.injections(), api.reflexivity()]);
         setOverview(ov);
         setStats(st.series);
         setInjections(inj.episodes);
+        setRefl(rf);
       } catch (e: any) { setErr(e.message); }
     })();
   }, []);
@@ -80,7 +82,7 @@ export default function App() {
       {err && <div className="err">Couldn't reach the API ({err}). Is it running on :8787? Run <code>npm run serve</code> in mcp-server.</div>}
 
       {/* REFLEXIVITY EXPLAINER */}
-      <ReflexivityExplainer multiplier={lv?.dollarsPerDollar ?? 3.85} />
+      <ReflexivityExplainer refl={refl} />
 
       {/* HERO SNAPSHOT */}
       <section className="tiles">
