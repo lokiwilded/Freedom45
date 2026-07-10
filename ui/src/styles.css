@@ -188,3 +188,10 @@ select, .toggle {
 .tt-val { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; padding-left: 12px; }
 
 .foot { color: var(--muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 16px; margin-top: 8px; max-width: 80ch; }
+
+/* chart specific */
+.recharts-cartesian-axis-tick-value { fill: var(--muted); }
+.recharts-text.recharts-label { fill: var(--secondary); }
+.recharts-legend-item-text { color: var(--secondary) !important; }
+.recharts-tooltip-wrapper { outline: none; }
+.recharts-reference-line line { stroke-opacity: 0.4; }

@@ -8,4 +8,5 @@ dist/
 mcp-server/data/
 
 # Local AI config
-.opencode/
+.opencode/ui/tsconfig.tsbuildinfo
+mcp-server/dist/

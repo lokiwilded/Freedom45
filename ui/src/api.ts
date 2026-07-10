@@ -17,6 +17,9 @@ const staticPath: Record<string, (q: URLSearchParams) => string> = {
   "/api/injections": () => "data/injections.json",
   "/api/reflexivity": () => "data/reflexivity.json",
   "/api/debt": (q) => `data/debt-${q.get("country")}-${q.get("sector")}.json`,
+  "/api/liquidity": () => "data/liquidity.json",
+  "/api/assets": (q) => `data/asset-${q.get("asset")}.json`,
+  "/api/elasticity": (q) => `data/elasticity-${q.get("driver")}-${q.get("asset")}.json`,
 };
 
 function route<T>(apiPath: string, params: Record<string, string> = {}): Promise<T> {
@@ -84,4 +87,8 @@ export const api = {
   injections: () => route<{ episodes: Injection[] }>("/api/injections"),
   reflexivity: () => route<Reflexivity>("/api/reflexivity"),
   debt: (country: string, sector: string) => route<DebtResp>("/api/debt", { country, sector }),
+  liquidity: () => route<LiquidityResp>("/api/liquidity"),
+  asset: (asset: string) => route<AssetResp>("/api/assets", { asset }),
+  elasticity: (driver: string, asset: string, lag?: number) =>
+    route<ElasticityResp>("/api/elasticity", { driver, asset, ...(lag != null ? { lag: String(lag) } : {}) }),
 };

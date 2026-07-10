@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
-import type { Overview, StatsSeries, SeriesPoint, Injection, Reflexivity } from "./api";
+import type { Overview, StatsSeries, SeriesPoint, Injection, Reflexivity, LiquidityResp, AssetResp } from "./api";
 import { useTheme } from "./theme";
-import { DebtStack } from "./charts";
-import { Tile, SeriesStatCard, InjectionCard, ReflexivityExplainer } from "./components";
+import { DebtStack, TimeSeriesChart } from "./charts";
+import type { SeriesConfig, TimeSeriesRow } from "./charts";
+import { Tile, SeriesStatCard, InjectionCard, ReflexivityExplainer, InfoDot } from "./components";
 
 const GROUP_ORDER = ["Macro", "US", "Europe", "Asia", "Commodity"];
 
@@ -28,7 +29,20 @@ const INFO = {
   debt: "Combined debt of government + households + companies, as a share of GDP (BIS). 100% means total debt equals one year of the whole economy's output.",
   m2: "US M2 broad money — physical cash, checking/savings deposits and other near-money.",
   reflexivity: "For every $1 the big three central banks added to their balance sheets since 2003, US stock market cap rose about this much. A single buyer at a higher price re-rates every share, so market cap climbs far more than the money 'printed'.",
+  liquidityChart: "A live, reusable time-series renderer. The API and static-bake layer now expose any series, so this component can graph liquidity, assets, money supply or any future computed metric.",
 };
+
+// Asset keys we can render on the generic time-series chart.
+const CHART_ASSETS = [
+  { key: "SP500", label: "S&P 500" },
+  { key: "US_MKTCAP", label: "US market cap" },
+  { key: "NASDAQ", label: "Nasdaq" },
+  { key: "GOLD", label: "Gold" },
+  { key: "FTSE", label: "FTSE 100" },
+  { key: "DAX", label: "DAX 40" },
+  { key: "NIKKEI", label: "Nikkei 225" },
+  { key: "SILVER", label: "Silver" },
+];
 
 export default function App() {
   const pal = useTheme();
@@ -40,17 +54,36 @@ export default function App() {
   const [debtRows, setDebtRows] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
+  // Generic time-series chart state.
+  const [liquidity, setLiquidity] = useState<LiquidityResp | null>(null);
+  const [assetSeries, setAssetSeries] = useState<Record<string, AssetResp>>({});
+  const [selectedAssetKey, setSelectedAssetKey] = useState("SP500");
+
   useEffect(() => {
     (async () => {
       try {
-        const [ov, st, inj, rf] = await Promise.all([api.overview(), api.stats(), api.injections(), api.reflexivity()]);
+        const [ov, st, inj, rf, liq] = await Promise.all([
+          api.overview(), api.stats(), api.injections(), api.reflexivity(), api.liquidity(),
+        ]);
         setOverview(ov);
         setStats(st.series);
         setInjections(inj.episodes);
         setRefl(rf);
+        setLiquidity(liq);
       } catch (e: any) { setErr(e.message); }
     })();
   }, []);
+
+  // Load the selected asset time-series when it changes.
+  useEffect(() => {
+    if (assetSeries[selectedAssetKey]) return;
+    (async () => {
+      try {
+        const a = await api.asset(selectedAssetKey);
+        setAssetSeries((prev) => ({ ...prev, [selectedAssetKey]: a }));
+      } catch (e: any) { setErr(e.message); }
+    })();
+  }, [selectedAssetKey, assetSeries]);
 
   useEffect(() => {
     (async () => {
@@ -70,6 +103,26 @@ export default function App() {
     { key: "corporate", name: "Corporate", color: pal.cat[2] },
   ];
   const lv = overview?.keyElasticity.levels;
+
+  // Build merged time-series rows for the generic chart.
+  const chartRows: TimeSeriesRow[] = (() => {
+    if (!liquidity) return [];
+    const toMap = (d: SeriesPoint[]) => new Map(d.filter((x) => x.value != null).map((x) => [x.date, x.value]));
+    const liqMap = toMap(liquidity.data.map((d) => ({ date: d.date, value: d.total_trillions })));
+    const asset = assetSeries[selectedAssetKey];
+    const assetMap = asset ? toMap(asset.data) : new Map();
+    const dates = new Set([...liqMap.keys(), ...assetMap.keys()]);
+    return [...dates].sort().map((date) => ({
+      date,
+      liquidity: liqMap.get(date) ?? null,
+      asset: assetMap.get(date) ?? null,
+    }));
+  })();
+
+  const chartSeries: SeriesConfig[] = [
+    { key: "liquidity", name: "Global CB liquidity", color: pal.cat[0], type: "area", yAxisId: "left", formatter: (v) => `$${Number(v).toFixed(1)}T` },
+    { key: "asset", name: CHART_ASSETS.find((a) => a.key === selectedAssetKey)?.label ?? selectedAssetKey, color: pal.cat[1], type: "line", yAxisId: "right", formatter: (v) => `${Number(v).toFixed(0)}` },
+  ];
 
   return (
     <div className="app">
@@ -91,6 +144,24 @@ export default function App() {
         <Tile label="US total debt" value={overview ? `${overview.usDebt.total}%` : "—"} sub="of GDP · gov + private" info={INFO.debt} />
         <Tile label="US M2 money supply" value={fmtT(overview?.usM2Trillions)} sub="broad money" info={INFO.m2} />
         <Tile label="Reflexivity" value={lv?.dollarsPerDollar ? `$${lv.dollarsPerDollar}` : "—"} sub="mkt-cap per $1 liquidity" accent info={INFO.reflexivity} />
+      </section>
+
+      {/* GENERIC TIME-SERIES EXPLORER — proves graphing plumbing */}
+      <section className="panel">
+        <div className="panel-head">
+          <div>
+            <h2>Explore the data</h2>
+            <p className="note">A generic time-series renderer. Liquidity is on the left axis; pick any asset for the right axis. This is a capability demo — more charts can reuse the same plumbing. <InfoDot text={INFO.liquidityChart} /></p>
+          </div>
+          <select value={selectedAssetKey} onChange={(e) => setSelectedAssetKey(e.target.value)} aria-label="Asset">
+            {CHART_ASSETS.map((a) => <option key={a.key} value={a.key}>{a.label}</option>)}
+          </select>
+        </div>
+        {chartRows.length ? (
+          <TimeSeriesChart rows={chartRows} series={chartSeries} pal={pal} height={380} />
+        ) : (
+          <div className="loading">Loading series…</div>
+        )}
       </section>
 
       {/* LIQUIDITY INJECTIONS — when money was added, what happened */}
