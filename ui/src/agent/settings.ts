@@ -54,6 +54,8 @@ export function saveAgentSettings(partial: Partial<AgentSettings>) {
 }
 
 export function canUseLiveAgent(): boolean {
-  const s = loadAgentSettings();
-  return isDev() && Boolean(s.apiKey ?? import.meta.env.VITE_OLLAMA_API_KEY);
+  // In dev, the Vite proxy injects the key from .env server-side, so the browser
+  // does not need to possess the key. We simply need to be in dev mode.
+  // localStorage key is treated as an optional override, not a requirement.
+  return isDev();
 }

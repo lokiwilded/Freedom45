@@ -1,51 +1,39 @@
 // Ollama Cloud agent — OpenAI-compatible chat completions with tool-calling.
 //
-// Talks through the Vite dev proxy at /llm (which injects the API key server-side
-// from .env). In production the proxy doesn't exist, so we fall back to StubAgent.
-//
-// The agent is two-phase:
-//   1. plan()    : send prompt + tool list, get tool_calls from the model.
-//   2. interpret(): send tool results back, get text answer + an optional chart spec.
+// Implements the agentic loop interface: step() does one round of tool-calling,
+// summarize() writes the final explanation. Talks through the Vite dev proxy
+// at /llm (which injects the API key server-side from .env).
 
 import type {
   Agent,
-  AgentPlan,
-  AgentInterpretation,
+  AgentStep,
   AgentSettings,
   ChatMessage,
   ToolSpec,
   ToolCall,
   ToolResult,
-  ChartSpec,
 } from "./types";
 
-const SYSTEM_PLAN = `You are a financial macro visualization assistant. Your job is to decide which data-fetching tools to call so the UI can graph what the user asked for.
+const SYSTEM_STEP = `You are a financial macro visualization assistant. You decide which data-fetching tools to call so the UI can graph what the user asked for.
 
-Rules:
-- Only call the provided tools.
-- Prefer fetching both liquidity and the asset(s) the user named so the chart can show both on a dual-axis plot.
-- If the user just says "show liquidity", call get_liquidity only.
-- If the user asks for a comparison (vs, against, and, overlay), fetch liquidity AND the named asset(s).
-- Output valid tool_calls; do not write prose in this turn.
-- Use ISO dates (YYYY-MM-DD) when the user gives a time range. Defaults: from=2003-01-01, to=today.`;
+RULES:
+- ALWAYS try the tools first. If the user names a company, stock, index, or commodity, call get_asset or get_stock with the closest matching key. Let the tool tell you whether data exists — do NOT assume from your own knowledge.
+- If the user says "show liquidity", call get_liquidity.
+- If the user asks for a comparison (vs, against, and, overlay), call get_liquidity AND get_asset/get_stock for each named asset.
+- If get_asset or get_stock returns an error, that is fine — the summarize step will explain it to the user.
+- Do NOT refuse to call tools based on whether you think something is publicly traded or in the dataset. Just try it.
+- You may call multiple tools in one turn if they are independent.
+- When you have called all the tools you need, respond with no tool_calls to signal you are done.
+- Use ISO dates (YYYY-MM-DD) when the user gives a time range.`;
 
-const SYSTEM_INTERPRET =
-  "You are a concise financial macro assistant explaining a chart to the user.\n\n" +
+const SYSTEM_SUMMARIZE =
+  "You are a concise financial macro assistant. You have just completed a series of data tool calls.\n\n" +
   "Rules:\n" +
-  "- Summarize what the data shows in 2-4 short paragraphs.\n" +
-  "- Be honest about limitations: this is descriptive history, not a prediction.\n" +
-  "- At the end, output a JSON chart spec inside a markdown code block labelled \"```json\", using this exact schema:\n\n" +
-  "{\n" +
-  "  \"title\": \"string\",\n" +
-  "  \"rows\": [{ \"date\": \"YYYY-MM-DD\", \"liquidity\": number|null, \"asset\": number|null }],\n" +
-  "  \"series\": [\n" +
-  "    { \"key\": \"liquidity\", \"name\": \"Global CB liquidity\", \"color\": \"#2a78d6\", \"type\": \"area\", \"yAxisId\": \"left\", \"formatter\": \"currencyT\" },\n" +
-  "    { \"key\": \"asset\", \"name\": \"Asset name\", \"color\": \"#1baf7a\", \"type\": \"line\", \"yAxisId\": \"right\", \"formatter\": \"integer\" }\n" +
-  "  ]\n" +
-  "}\n\n" +
-  "Formatter options: \"currencyT\" (e.g. $12.3T), \"integer\", \"percent\".\n" +
-  "Rows must cover the same dates for both series; use null when a date is missing for one side.\n" +
-  "If the user did not ask for a chart, you may omit the chart block.";
+  "- Explain what the returned data shows based ONLY on the tool results in the conversation.\n" +
+  "- If a tool returned an error or no data, tell the user that asset isn't available and suggest what is.\n" +
+  "- Do NOT use outside knowledge to answer. The tool results are your only source of truth.\n" +
+  "- Keep the explanation to 2-4 short paragraphs.\n" +
+  "- Be honest about limitations: this is descriptive history, not a prediction.";
 
 function convertTools(tools: ToolSpec[]): any[] {
   return tools.map((t) => ({
@@ -56,42 +44,6 @@ function convertTools(tools: ToolSpec[]): any[] {
       parameters: t.parameters,
     },
   }));
-}
-
-function buildPlanMessages(prompt: string, tools: ToolSpec[], history: ChatMessage[]): any[] {
-  const msgs: any[] = [{ role: "system", content: SYSTEM_PLAN }];
-  for (const m of history) {
-    if (m.role === "user") msgs.push({ role: "user", content: m.content });
-    if (m.role === "assistant") {
-      msgs.push({
-        role: "assistant",
-        content: m.content || null,
-        tool_calls: m.toolCalls?.map((tc, i) => ({
-          id: tc.id ?? `call_${i}`,
-          type: "function",
-          function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
-        })),
-      });
-    }
-  }
-  msgs.push({ role: "user", content: prompt });
-  return msgs;
-}
-
-function buildInterpretMessages(results: ToolResult[], history: ChatMessage[]): any[] {
-  const msgs: any[] = [{ role: "system", content: SYSTEM_INTERPRET }];
-  for (const m of history) {
-    if (m.role === "user") msgs.push({ role: "user", content: m.content });
-    if (m.role === "assistant") msgs.push({ role: "assistant", content: m.content });
-  }
-  // Append tool results as one user message.
-  msgs.push({
-    role: "user",
-    content: `Tool results:\n\n${results
-      .map((r) => `${r.name}: ${r.ok ? JSON.stringify(r.data).slice(0, 12000) : r.error}`)
-      .join("\n\n")}\n\nNow explain this to the user and provide the JSON chart spec if appropriate.`,
-  });
-  return msgs;
 }
 
 export class OllamaAgent implements Agent {
@@ -118,8 +70,33 @@ export class OllamaAgent implements Agent {
     return res.json();
   }
 
-  async plan(prompt: string, tools: ToolSpec[], history: ChatMessage[]): Promise<AgentPlan> {
-    const data = await this.chat(buildPlanMessages(prompt, tools, history), convertTools(tools));
+  async step(messages: ChatMessage[], tools: ToolSpec[]): Promise<AgentStep> {
+    // Build the messages array for the LLM: system + conversation.
+    const llmMessages: any[] = [{ role: "system", content: SYSTEM_STEP }];
+    for (const m of messages) {
+      if (m.role === "tool") {
+        // OpenAI tool result format
+        llmMessages.push({
+          role: "tool",
+          tool_call_id: m.name ?? "unknown",
+          content: m.content,
+        });
+      } else if (m.role === "assistant" && m.toolCalls?.length) {
+        llmMessages.push({
+          role: "assistant",
+          content: m.content || null,
+          tool_calls: m.toolCalls.map((tc, i) => ({
+            id: tc.id ?? `call_${i}`,
+            type: "function",
+            function: { name: tc.name, arguments: JSON.stringify(tc.arguments) },
+          })),
+        });
+      } else {
+        llmMessages.push({ role: m.role, content: m.content });
+      }
+    }
+
+    const data = await this.chat(llmMessages, convertTools(tools));
     const msg = data.choices?.[0]?.message;
     if (!msg) throw new Error("No response from model");
 
@@ -137,54 +114,36 @@ export class OllamaAgent implements Agent {
       })) ?? [];
 
     return {
-      text: msg.content ?? undefined,
       toolCalls,
-      raw: { role: "assistant", content: msg.content ?? "", toolCalls },
+      done: toolCalls.length === 0,
+      assistantMessage: {
+        role: "assistant",
+        content: msg.content ?? "",
+        toolCalls: toolCalls.length ? toolCalls : undefined,
+      },
     };
   }
 
-  async interpret(results: ToolResult[], history: ChatMessage[]): Promise<AgentInterpretation> {
-    const data = await this.chat(buildInterpretMessages(results, history));
+  async summarize(messages: ChatMessage[], prompt: string): Promise<string> {
+    // Build a summarize request: system + the full conversation (including tool results).
+    const llmMessages: any[] = [{ role: "system", content: SYSTEM_SUMMARIZE }];
+    for (const m of messages) {
+      if (m.role === "tool") {
+        llmMessages.push({ role: "user", content: `[Tool result: ${m.name}]\n${m.content}` });
+      } else if (m.role === "assistant" && m.toolCalls?.length) {
+        // Skip assistant tool-call messages — the tool results that follow cover it
+      } else {
+        llmMessages.push({ role: m.role, content: m.content });
+      }
+    }
+    llmMessages.push({
+      role: "user",
+      content: `Original request: ${prompt}\n\nSummarize what the data shows. If tools returned errors, explain what's available.`,
+    });
+
+    const data = await this.chat(llmMessages);
     const msg = data.choices?.[0]?.message;
     if (!msg) throw new Error("No response from model");
-
-    const content = msg.content ?? "";
-    const chart = extractChart(content);
-
-    return {
-      text: chart ? content.split("```json")[0]?.trim() || content : content,
-      chart,
-      raw: { role: "assistant", content },
-    };
-  }
-}
-
-function extractChart(content: string): ChartSpec | undefined {
-  const m = content.match(/```json\s*([\s\S]*?)\s*```/);
-  if (!m) return undefined;
-  try {
-    const raw = JSON.parse(m[1]);
-    return {
-      title: raw.title,
-      rows: raw.rows,
-      series: raw.series.map((s: any) => ({
-        ...s,
-        formatter: parseFormatter(s.formatter),
-      })),
-    };
-  } catch {
-    return undefined;
-  }
-}
-
-function parseFormatter(name?: string): (v: number | null) => string {
-  switch (name) {
-    case "currencyT":
-      return (v) => (v == null ? "—" : `$${Number(v).toFixed(1)}T`);
-    case "percent":
-      return (v) => (v == null ? "—" : `${Number(v).toFixed(1)}%`);
-    case "integer":
-    default:
-      return (v) => (v == null ? "—" : `${Math.round(Number(v))}`);
+    return msg.content ?? "Done.";
   }
 }

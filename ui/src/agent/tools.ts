@@ -26,7 +26,7 @@ export const AVAILABLE_TOOLS: ToolSpec[] = [
   {
     name: "get_asset",
     description:
-      "Fetch a historical asset time series (index level or market cap). Supported assets: SP500, NASDAQ, DOW, US_MKTCAP, FTSE, DAX, ESTOXX50, CAC40, NIKKEI, HANGSENG, SHANGHAI, GOLD, SILVER, KOSPI, ASX200, TSX. Use when the user names an index, commodity, or market cap.",
+      "Fetch a historical asset time series for MAJOR INDEXES and COMMODITIES only (not individual stocks). Known assets: SP500, NASDAQ, DOW, US_MKTCAP, FTSE, DAX, ESTOXX50, CAC40, NIKKEI, HANGSENG, SHANGHAI, GOLD, SILVER, KOSPI, ASX200, TSX. The tool will return an error for unknown keys.",
     parameters: {
       type: "object",
       properties: {
@@ -35,6 +35,20 @@ export const AVAILABLE_TOOLS: ToolSpec[] = [
         to: { type: "string", description: "Optional end date YYYY-MM-DD." },
       },
       required: ["asset"],
+    },
+  },
+  {
+    name: "get_stock",
+    description:
+      "Fetch historical price data for an INDIVIDUAL STOCK by ticker symbol via Yahoo Finance. Use this when the user names a specific company or stock ticker (e.g. TSLA, AAPL, NVDA, MSFT). The tool tries the ticker directly — if Yahoo has no data it returns an error. Always try the user's term as the ticker first.",
+    parameters: {
+      type: "object",
+      properties: {
+        ticker: { type: "string", description: "Stock ticker symbol, e.g. 'TSLA', 'AAPL', 'NVDA'" },
+        from: { type: "string", description: "Optional start date YYYY-MM-DD." },
+        to: { type: "string", description: "Optional end date YYYY-MM-DD." },
+      },
+      required: ["ticker"],
     },
   },
   {
@@ -68,28 +82,6 @@ export const AVAILABLE_TOOLS: ToolSpec[] = [
     description: "Fetch the dashboard hero snapshot: latest liquidity, US market cap, US debt, M2, and key elasticity summary.",
     parameters: { type: "object", properties: {} },
   },
-  {
-    name: "render_chart",
-    description:
-      "Call this after fetching data to tell the UI what to graph. Provide a title, the merged time-series rows, and series config. Each series must match a column in rows and specify type ('line' or 'area'), name, color, yAxisId ('left' or 'right'), and a human formatter.",
-    parameters: {
-      type: "object",
-      properties: {
-        title: { type: "string" },
-        rows: {
-          type: "array",
-          description: "Array of { date: string, [seriesKey]: number|null } objects, sorted by date.",
-          items: { type: "object" },
-        },
-        series: {
-          type: "array",
-          description: "Array of SeriesConfig: { key, name, color, type, yAxisId, formatter? }",
-          items: { type: "object" },
-        },
-      },
-      required: ["title", "rows", "series"],
-    },
-  },
 ];
 
 // Execute a tool call in the browser. Returns a ToolResult.
@@ -105,19 +97,64 @@ export async function executeTool(call: ToolCall): Promise<ToolResult> {
   try {
     switch (call.name) {
       case "get_liquidity": {
-        const from = String(call.arguments.from ?? "2003-01-01");
-        const to = String(call.arguments.to ?? "");
-        const params: Record<string, string> = { from };
-        if (to) params.to = to;
-        // @ts-ignore — api.liquidity currently has no date params; acceptable to ignore extras in dev
         const data = await api.liquidity();
         return { toolCallId: call.id, name: call.name, ok: true, data };
       }
 
       case "get_asset": {
         const asset = String(call.arguments.asset).toUpperCase();
-        const data = await api.asset(asset);
-        return { toolCallId: call.id, name: call.name, ok: true, data };
+        try {
+          const data = await api.asset(asset);
+          const any = data as { error?: string };
+          if (any.error) return fail(any.error);
+          return { toolCallId: call.id, name: call.name, ok: true, data };
+        } catch (e: any) {
+          return fail(e?.message ?? `Could not fetch asset '${asset}'.`);
+        }
+      }
+
+      case "get_stock": {
+        const ticker = String(call.arguments.ticker).toUpperCase();
+        try {
+          const period1 = -2208988800;
+          const period2 = Math.floor(Date.now() / 1000) + 86400;
+          const url = `/yh/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${period1}&period2=${period2}&interval=1mo`;
+          const res = await fetch(url);
+          if (!res.ok) return fail(`Yahoo returned ${res.status} for ticker '${ticker}'.`);
+          const json = await res.json() as any;
+          const result = json?.chart?.result?.[0];
+          if (!result) {
+            const msg = json?.chart?.error?.description ?? "no data";
+            return fail(`No data for ticker '${ticker}': ${msg}`);
+          }
+          const meta = result.meta ?? {};
+          const ts: number[] = result.timestamp ?? [];
+          const closes: (number | null)[] = result.indicators?.quote?.[0]?.close ?? [];
+          const data = ts
+            .map((t, i) => {
+              const v = closes[i];
+              if (v == null || Number.isNaN(v)) return null;
+              const d = new Date(t * 1000);
+              return { date: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`, value: v };
+            })
+            .filter((x): x is { date: string; value: number } => x !== null);
+          if (!data.length) return fail(`No price history for ticker '${ticker}'.`);
+          return {
+            toolCallId: call.id,
+            name: call.name,
+            ok: true,
+            data: {
+              asset: ticker,
+              label: meta.longName ?? meta.shortName ?? ticker,
+              currency: meta.currency ?? "USD",
+              metric: "level",
+              data,
+              latest: data[data.length - 1],
+            },
+          };
+        } catch (e: any) {
+          return fail(e?.message ?? `Could not fetch stock '${ticker}'.`);
+        }
       }
 
       case "get_debt": {
@@ -139,44 +176,10 @@ export async function executeTool(call: ToolCall): Promise<ToolResult> {
         return { toolCallId: call.id, name: call.name, ok: true, data };
       }
 
-      case "render_chart": {
-        return {
-          toolCallId: call.id,
-          name: call.name,
-          ok: true,
-          data: {
-            title: call.arguments.title,
-            rows: call.arguments.rows,
-            series: call.arguments.series,
-          },
-        };
-      }
-
       default:
         return fail(`Unknown tool: ${call.name}`);
     }
   } catch (err: any) {
     return fail(err?.message ?? String(err));
   }
-}
-
-// Merge multiple time-series into rows keyed by date.
-export function mergeByDate(
-  maps: Record<string, Map<string, number | null>>,
-  defaultKeys?: string[]
-): { date: string; [key: string]: number | null | string }[] {
-  const dates = new Set<string>();
-  Object.values(maps).forEach((m) => m.forEach((_, d) => dates.add(d)));
-  const keys = defaultKeys ?? Object.keys(maps);
-  return [...dates]
-    .sort()
-    .map((date) => {
-      const row: Record<string, number | null | string> = { date };
-      for (const k of keys) row[k] = maps[k]?.get(date) ?? null;
-      return row as any;
-    });
-}
-
-export function toMap(points: SeriesPoint[]): Map<string, number> {
-  return new Map(points.filter((p) => p.value != null).map((p) => [p.date, p.value]));
 }

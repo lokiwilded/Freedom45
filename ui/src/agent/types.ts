@@ -3,11 +3,44 @@
 // Design goals:
 // - The agent is fully replaceable. Drop in a new Agent impl (OpenAI, local Ollama,
 //   rule-based, etc.) and the UI doesn't change.
-// - The agent only plans and interprets. Actual tool execution happens in the browser
-//   (fetching static JSON / live API) so the MCP server stays untouched.
-// - Chart specs are pure data — the existing TimeSeriesChart renders them.
+// - The agent runs an agentic loop: step() decides the next action, summarize() writes
+//   the final explanation. Tool execution happens in the browser so the MCP server
+//   stays untouched.
+// - Graph layers are pure data — the GraphCanvas component renders them incrementally.
 
-import type { SeriesConfig, TimeSeriesRow } from "../charts";
+// --- Graph layer model (Desmos-style: agent projects layers onto a persistent canvas) ---
+
+export interface SeriesDataPoint {
+  time: string; // YYYY-MM-DD or YYYY-MM-01
+  value: number;
+}
+
+export interface GraphLayer {
+  id: string;
+  kind: "line" | "area" | "histogram";
+  key: string;
+  name: string;
+  color: string;
+  yAxis: "left" | "right";
+  data: SeriesDataPoint[];
+}
+
+export interface GraphMarker {
+  id: string;
+  seriesKey: string;
+  time: string;
+  position: "aboveBar" | "belowBar";
+  text: string;
+  color: string;
+}
+
+export interface GraphState {
+  layers: GraphLayer[];
+  markers: GraphMarker[];
+  title?: string;
+}
+
+// --- Agent types ---
 
 export interface ToolSpec {
   name: string;
@@ -34,29 +67,17 @@ export interface SeriesPoint {
   value: number;
 }
 
-export interface ChartSpec {
-  title: string;
-  rows: TimeSeriesRow[];
-  series: SeriesConfig[];
-}
-
 export interface ChatMessage {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
   toolCalls?: ToolCall[];
-  toolResults?: ToolResult[];
+  name?: string;
 }
 
-export interface AgentPlan {
-  text?: string;
+export interface AgentStep {
   toolCalls: ToolCall[];
-  raw: ChatMessage;
-}
-
-export interface AgentInterpretation {
-  text: string;
-  chart?: ChartSpec;
-  raw: ChatMessage;
+  done: boolean;
+  assistantMessage: ChatMessage;
 }
 
 export interface AgentSettings {
@@ -66,9 +87,15 @@ export interface AgentSettings {
 }
 
 export interface Agent {
-  /** Given a user prompt + available tools + conversation history, decide which tools to call. */
-  plan(prompt: string, tools: ToolSpec[], history: ChatMessage[]): Promise<AgentPlan>;
+  /**
+   * One step of the agentic loop. Given the conversation so far + available tools,
+   * decide whether to call more tools or finish.
+   */
+  step(messages: ChatMessage[], tools: ToolSpec[]): Promise<AgentStep>;
 
-  /** Given the tool results, produce a human explanation and an optional chart spec. */
-  interpret(results: ToolResult[], history: ChatMessage[]): Promise<AgentInterpretation>;
+  /**
+   * After the loop finishes (done=true or max turns), produce a human explanation
+   * of what was graphed.
+   */
+  summarize(messages: ChatMessage[], prompt: string): Promise<string>;
 }

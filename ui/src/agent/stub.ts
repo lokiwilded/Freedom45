@@ -1,13 +1,12 @@
 // A rule-based, zero-API-key agent fallback.
 //
-// Lets the Agent tab render charts and demonstrate the UI without any live LLM.
-// It recognizes a few keyword patterns, fetches the matching baked JSON, and returns
-// a canned ChartSpec. The `Agent` interface keeps it swappable with the real OllamaAgent.
+// Implements the agentic loop interface (step/summarize) so the UI works without
+// any live LLM. It recognizes keyword patterns and returns tool calls one at a
+// time so the graph builds incrementally even in stub mode.
 
-import type { Agent, AgentPlan, AgentInterpretation, ToolCall, ToolResult, ChartSpec } from "./types.js";
-import type { SeriesConfig, TimeSeriesRow } from "../charts.js";
-import { AVAILABLE_TOOLS, executeTool } from "./tools.js";
-import { useTheme } from "../theme.js";
+import type { Agent, AgentStep, ChatMessage, ToolSpec, ToolCall } from "./types";
+import { AVAILABLE_TOOLS, executeTool } from "./tools";
+import type { ToolResult } from "./types";
 
 const ASSET_LABELS: Record<string, string> = {
   SP500: "S&P 500",
@@ -25,98 +24,101 @@ const ASSET_LABELS: Record<string, string> = {
   SHANGHAI: "Shanghai Composite",
 };
 
-function parseRequest(prompt: string): { asset: string; title: string } | null {
-  const p = prompt.toLowerCase();
-  const assets = Object.entries(ASSET_LABELS);
+const TICKER_HINTS: Record<string, string> = {
+  TSLA: "Tesla",
+  AAPL: "Apple",
+  NVDA: "NVIDIA",
+  MSFT: "Microsoft",
+  AMZN: "Amazon",
+  GOOGL: "Alphabet",
+  META: "Meta",
+};
 
-  // Liquidity alone.
-  if (/liquidity|central bank|cb balance|money printing|qe/.test(p) && !/vs|versus|against|and/.test(p)) {
-    return { asset: "liquidity", title: "Global central-bank liquidity" };
+interface StubPlan {
+  toolCalls: ToolCall[];
+  summary: string;
+}
+
+function planStub(prompt: string): StubPlan {
+  const p = prompt.toLowerCase();
+
+  // Check for known tickers first.
+  for (const [ticker, name] of Object.entries(TICKER_HINTS)) {
+    if (p.includes(ticker.toLowerCase()) || p.includes(name.toLowerCase())) {
+      const wantsLiq = /liquidity|central bank|cb balance|money printing|qe/.test(p);
+      const calls: ToolCall[] = [{ name: "get_stock", arguments: { ticker } }];
+      if (wantsLiq) calls.unshift({ name: "get_liquidity", arguments: {} });
+      return { toolCalls: calls, summary: `Showing ${name} (${ticker})${wantsLiq ? " vs liquidity" : ""}.` };
+    }
   }
 
-  for (const [key, label] of assets) {
+  // Check for known assets.
+  for (const [key, label] of Object.entries(ASSET_LABELS)) {
     const re = new RegExp(`\\b${label.toLowerCase().replace(/\s+/g, "\\s+")}\\b|\\b${key.toLowerCase()}\\b`);
-    if (re.test(p)) return { asset: key, title: `${label} vs liquidity` };
+    if (re.test(p)) {
+      const wantsLiq = /liquidity|central bank|cb balance|money printing|qe/.test(p) || /vs|versus|against|and|overlay/.test(p);
+      const calls: ToolCall[] = [{ name: "get_asset", arguments: { asset: key } }];
+      if (wantsLiq) calls.unshift({ name: "get_liquidity", arguments: {} });
+      return { toolCalls: calls, summary: `Showing ${label}${wantsLiq ? " vs liquidity" : ""}.` };
+    }
+  }
+
+  // Liquidity alone.
+  if (/liquidity|central bank|cb balance|money printing|qe/.test(p)) {
+    return { toolCalls: [{ name: "get_liquidity", arguments: {} }], summary: "Showing global central-bank liquidity." };
+  }
+
+  // Debt.
+  if (/debt/.test(p)) {
+    const countryMatch = p.match(/\b(us|jp|gb|uk|de|fr|it|ca|au|cn|kr)\b/);
+    const country = countryMatch ? countryMatch[1].toUpperCase() : "US";
+    return {
+      toolCalls: [{ name: "get_debt", arguments: { country, sector: "government" } }],
+      summary: `Showing government debt for ${country}.`,
+    };
   }
 
   // Default fallback.
-  return { asset: "SP500", title: "S&P 500 vs liquidity" };
+  return {
+    toolCalls: [{ name: "get_liquidity", arguments: {} }, { name: "get_asset", arguments: { asset: "SP500" } }],
+    summary: "Showing liquidity vs S&P 500 (default). Try naming a specific asset or stock.",
+  };
 }
 
 export class StubAgent implements Agent {
-  async plan(): Promise<AgentPlan> {
-    // The stub doesn't actually call an LLM; it returns an empty plan so the
-    // caller can short-circuit and call interpret directly with the original prompt.
-    return { toolCalls: [], raw: { role: "assistant", content: "" } };
-  }
+  private plan: StubPlan | null = null;
+  private callIndex = 0;
+  private results: ToolResult[] = [];
 
-  async interpret(results: ToolResult[], history: any[]): Promise<AgentInterpretation> {
-    const lastUser = [...history].reverse().find((m) => m.role === "user");
-    const prompt = (lastUser?.content ?? "") as string;
-    const parsed = parseRequest(prompt);
-    if (!parsed) {
+  async step(messages: ChatMessage[], _tools: ToolSpec[]): Promise<AgentStep> {
+    // On first call, parse the prompt and build a plan.
+    if (!this.plan) {
+      const lastUser = [...messages].reverse().find((m) => m.role === "user");
+      this.plan = planStub(lastUser?.content ?? "");
+      this.callIndex = 0;
+      this.results = [];
+    }
+
+    // Return one tool call at a time so the graph builds incrementally.
+    if (this.callIndex < this.plan.toolCalls.length) {
+      const tc = this.plan.toolCalls[this.callIndex];
+      this.callIndex++;
       return {
-        text: "I'm a simple stub agent. Try asking me to compare liquidity with an asset like 'gold', 'S&P 500', or 'Nasdaq'.",
-        raw: { role: "assistant", content: "" },
+        toolCalls: [tc],
+        done: false,
+        assistantMessage: { role: "assistant", content: `Calling ${tc.name}…`, toolCalls: [tc] },
       };
     }
 
-    const toolCalls: ToolCall[] = [{ name: "get_liquidity", arguments: {} }];
-    if (parsed.asset !== "liquidity") {
-      toolCalls.push({ name: "get_asset", arguments: { asset: parsed.asset } });
-    }
-
-    const executed = await Promise.all(toolCalls.map((tc) => executeTool(tc)));
-    const liquidityResult = executed.find((r) => r.name === "get_liquidity")?.data as any;
-    const assetResult = parsed.asset === "liquidity" ? null : executed.find((r) => r.name === "get_asset")?.data as any;
-
-    const toMap = (rows: { date: string; value: number }[]) =>
-      new Map(rows.filter((x) => x.value != null).map((x) => [x.date, x.value]));
-
-    const liqMap = toMap(
-      liquidityResult?.data?.map((d: any) => ({ date: d.date, value: d.total_trillions })) ?? []
-    );
-    const assetMap = assetResult?.data ? toMap(assetResult.data) : new Map<string, number>();
-
-    const dates = new Set([...liqMap.keys(), ...assetMap.keys()]);
-    const rows: TimeSeriesRow[] = [...dates].sort().map((date) => ({
-      date,
-      liquidity: liqMap.get(date) ?? null,
-      asset: assetMap.get(date) ?? null,
-    }));
-
-    const series: SeriesConfig[] = [
-      {
-        key: "liquidity",
-        name: "Global CB liquidity",
-        color: "#2a78d6",
-        type: "area",
-        yAxisId: "left",
-        formatter: (v) => `$${Number(v).toFixed(1)}T`,
-      },
-    ];
-
-    if (parsed.asset !== "liquidity") {
-      series.push({
-        key: "asset",
-        name: ASSET_LABELS[parsed.asset] ?? parsed.asset,
-        color: "#1baf7a",
-        type: "line",
-        yAxisId: "right",
-        formatter: (v) => `${Number(v).toFixed(0)}`,
-      });
-    }
-
-    const chart: ChartSpec = {
-      title: parsed.title,
-      rows,
-      series,
-    };
-
+    // All calls done.
     return {
-      text: `Stub agent: showing ${parsed.title}. This is an offline fallback — add your Ollama API key to .env in dev to use the live glm-5.2 agent.`,
-      chart,
-      raw: { role: "assistant", content: "" },
+      toolCalls: [],
+      done: true,
+      assistantMessage: { role: "assistant", content: this.plan.summary },
     };
+  }
+
+  async summarize(_messages: ChatMessage[], _prompt: string): Promise<string> {
+    return this.plan?.summary ?? "Done. (stub agent)";
   }
 }

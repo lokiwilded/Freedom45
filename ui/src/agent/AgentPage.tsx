@@ -1,37 +1,44 @@
 import { useEffect, useRef, useState } from "react";
-import { useTheme } from "../theme";
-import { TimeSeriesChart } from "../charts";
-import type { ChatMessage, ChartSpec, ToolResult, Agent } from "./types";
+import type { ChatMessage, GraphState, ToolResult, Agent } from "./types";
 import { AVAILABLE_TOOLS, executeTool } from "./tools";
 import { OllamaAgent } from "./ollama";
 import { StubAgent } from "./stub";
 import { canUseLiveAgent, loadAgentSettings, saveAgentSettings, type AgentSettings } from "./settings";
+import { projectResult } from "./projectors";
+import GraphCanvas from "./GraphCanvas";
 
-interface Step {
+interface ChatStep {
   id: string;
-  kind: "user" | "tool" | "chart" | "text" | "error";
+  kind: "user" | "tool" | "text" | "error";
   text: string;
-  toolResult?: ToolResult;
-  chart?: ChartSpec;
 }
 
-const fmtNow = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+function makeId(): string {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+const MAX_TURNS = 10;
 
 export default function AgentPage() {
-  const pal = useTheme();
   const [settings, setSettings] = useState<AgentSettings>(loadAgentSettings);
   const [live, setLive] = useState(canUseLiveAgent());
   const [showSettings, setShowSettings] = useState(false);
   const [input, setInput] = useState("");
-  const [steps, setSteps] = useState<Step[]>([]);
+  const [chatSteps, setChatSteps] = useState<ChatStep[]>([]);
   const [running, setRunning] = useState(false);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [graph, setGraph] = useState<GraphState>({ layers: [], markers: [] });
+  const colorIdxRef = useRef(0);
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [steps]);
+    chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [chatSteps]);
 
-  const agent: Agent = live ? new OllamaAgent(settings) : new StubAgent();
+  // Create a fresh agent for each conversation (stub holds internal state).
+  const agentRef = useRef<Agent | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,61 +47,91 @@ export default function AgentPage() {
     const prompt = input.trim();
     setInput("");
     setRunning(true);
-    setSteps((prev) => [...prev, { id: crypto.randomUUID(), kind: "user", text: prompt }]);
+    setChatSteps((prev) => [...prev, { id: makeId(), kind: "user", text: prompt }]);
+
+    // Create a new agent for this conversation.
+    agentRef.current = live ? new OllamaAgent(settings) : new StubAgent();
+    const agent = agentRef.current;
 
     try {
-      const history: ChatMessage[] = steps
-        .filter((s) => s.kind === "user" || s.kind === "text")
-        .map((s) => ({
-          role: s.kind === "user" ? "user" : "assistant",
-          content: s.text,
-        }));
-
-      // Phase 1: plan.
-      const plan = await agent.plan(prompt, AVAILABLE_TOOLS, history);
-
-      // Phase 2: execute tools.
-      const results: ToolResult[] = [];
-      for (const tc of plan.toolCalls) {
-        setSteps((prev) => [
-          ...prev,
-          { id: crypto.randomUUID(), kind: "tool", text: `Calling ${tc.name}…` },
-        ]);
-        const r = await executeTool(tc);
-        results.push(r);
-        setSteps((prev) => [
-          ...prev,
-          { id: crypto.randomUUID(), kind: "tool", text: `${r.name}: ${r.ok ? "ok" : "failed"}`, toolResult: r },
-        ]);
-      }
-
-      // Phase 3: interpret.
-      const interpretation = await agent.interpret(results, [
-        ...history,
+      // Build conversation messages for the agent loop.
+      const messages: ChatMessage[] = [
+        ...chatSteps
+          .filter((s) => s.kind === "user" || s.kind === "text")
+          .map((s) => ({
+            role: (s.kind === "user" ? "user" : "assistant") as "user" | "assistant",
+            content: s.text,
+          })),
         { role: "user", content: prompt },
-        plan.raw,
-      ]);
+      ];
 
-      setSteps((prev) => [
-        ...prev,
-        { id: crypto.randomUUID(), kind: "text", text: interpretation.text },
-      ]);
+      // Agentic loop: step → execute tools → project onto graph → repeat.
+      for (let turn = 0; turn < MAX_TURNS; turn++) {
+        const step = await agent.step(messages, AVAILABLE_TOOLS);
 
-      const chart = interpretation.chart;
-      if (chart) {
-        setSteps((prev) => [
-          ...prev,
-          { id: crypto.randomUUID(), kind: "chart", text: chart.title, chart },
-        ]);
+        // Add assistant's thinking to chat.
+        if (step.assistantMessage.content && step.toolCalls.length === 0) {
+          // This is the "done" message — hold it for summarize.
+        }
+
+        if (step.done) {
+          messages.push(step.assistantMessage);
+          break;
+        }
+
+        messages.push(step.assistantMessage);
+
+        // Execute each tool call and project onto the graph immediately.
+        for (const tc of step.toolCalls) {
+          setChatSteps((prev) => [
+            ...prev,
+            { id: makeId(), kind: "tool", text: `Calling ${tc.name}…` },
+          ]);
+
+          const result = await executeTool(tc);
+
+          // Add tool result to conversation for the next step.
+          messages.push({
+            role: "tool",
+            name: tc.name,
+            content: result.ok ? JSON.stringify(result.data).slice(0, 12000) : `Error: ${result.error}`,
+          });
+
+          setChatSteps((prev) => [
+            ...prev,
+            { id: makeId(), kind: "tool", text: `${tc.name}: ${result.ok ? "ok" : "failed"}` },
+          ]);
+
+          // PROJECT onto graph immediately — the user sees the series appear.
+          if (result.ok) {
+            const projection = projectResult(result, colorIdxRef.current);
+            if (projection.layers.length) {
+              colorIdxRef.current += projection.layers.length;
+              setGraph((prev) => ({
+                ...prev,
+                layers: [...prev.layers, ...projection.layers],
+              }));
+            }
+          }
+        }
       }
+
+      // Summarize.
+      const summary = await agent.summarize(messages, prompt);
+      setChatSteps((prev) => [...prev, { id: makeId(), kind: "text", text: summary }]);
     } catch (err: any) {
-      setSteps((prev) => [
+      setChatSteps((prev) => [
         ...prev,
-        { id: crypto.randomUUID(), kind: "error", text: `Agent error: ${err?.message ?? String(err)}` },
+        { id: makeId(), kind: "error", text: `Agent error: ${err?.message ?? String(err)}` },
       ]);
     } finally {
       setRunning(false);
     }
+  }
+
+  function clearGraph() {
+    setGraph({ layers: [], markers: [] });
+    colorIdxRef.current = 0;
   }
 
   function updateSettings(next: Partial<AgentSettings>) {
@@ -105,96 +142,83 @@ export default function AgentPage() {
   }
 
   return (
-    <section className="agent">
-      <div className="section-head">
-        <h2>Ask the dashboard</h2>
-        <p className="note">
-          Tell the agent what to graph — e.g. “show liquidity vs gold since 2015”. It picks tools, fetches data, and renders a chart. The agent runs in the browser and is fully swappable.
-        </p>
-      </div>
-
-      <div className="agent-status">
-        <span className={`agent-dot ${live ? "on" : "off"}`} />
-        {live ? `Live agent: ${settings.model}` : "Stub agent (no live LLM)"}
-        <button type="button" className="agent-settings-toggle" onClick={() => setShowSettings((s) => !s)}>
-          {showSettings ? "Hide settings" : "Settings"}
-        </button>
-      </div>
-
-      {showSettings && (
-        <div className="agent-settings">
-          <label>
-            Base URL
-            <input
-              type="text"
-              value={settings.baseURL}
-              onChange={(e) => updateSettings({ baseURL: e.target.value })}
-              placeholder="https://ollama.com/v1"
-            />
-          </label>
-          <label>
-            Model
-            <input
-              type="text"
-              value={settings.model}
-              onChange={(e) => updateSettings({ model: e.target.value })}
-              placeholder="glm-5.2"
-            />
-          </label>
-          <label>
-            API key
-            <input
-              type="password"
-              value={settings.apiKey ?? ""}
-              onChange={(e) => updateSettings({ apiKey: e.target.value || null })}
-              placeholder="Set in .env for dev proxy"
-            />
-          </label>
-          <p className="note">In dev, the Vite proxy reads the key from .env and forwards to Ollama. In production, only the StubAgent runs.</p>
+    <div className="agent-split">
+      {/* GRAPH — dominant left panel */}
+      <div className="agent-graph-panel">
+        <div className="agent-graph-toolbar">
+          <span className={`agent-dot ${live ? "on" : "off"}`} />
+          {live ? `Live: ${settings.model}` : "Stub agent"}
+          <button type="button" className="agent-clear-btn" onClick={clearGraph} disabled={running}>
+            Clear graph
+          </button>
+          <button type="button" className="agent-settings-toggle" onClick={() => setShowSettings((s) => !s)}>
+            {showSettings ? "Hide settings" : "Settings"}
+          </button>
         </div>
-      )}
 
-      <div className="agent-transcript" ref={scrollRef}>
-        {steps.length === 0 && (
-          <div className="agent-empty">
-            Try: “Show liquidity vs gold”, “Compare Nasdaq and S&amp;P 500”, or “Debt by sector for Japan”.
+        {showSettings && (
+          <div className="agent-settings">
+            <label>
+              Base URL
+              <input type="text" value={settings.baseURL} onChange={(e) => updateSettings({ baseURL: e.target.value })} placeholder="https://ollama.com/v1" />
+            </label>
+            <label>
+              Model
+              <input type="text" value={settings.model} onChange={(e) => updateSettings({ model: e.target.value })} placeholder="glm-5.2" />
+            </label>
+            <label>
+              API key
+              <input type="password" value={settings.apiKey ?? ""} onChange={(e) => updateSettings({ apiKey: e.target.value || null })} placeholder="Set in .env for dev proxy" />
+            </label>
+            <p className="note">In dev, the Vite proxy reads the key from .env. In production, only the StubAgent runs.</p>
           </div>
         )}
-        {steps.map((s) => (
-          <div key={s.id} className={`agent-step agent-step-${s.kind}`}>
-            {s.kind === "user" && <div className="agent-bubble user">{s.text}</div>}
-            {s.kind === "tool" && (
-              <div className="agent-step-tool">
-                <span className="agent-time">{fmtNow()}</span> {s.text}
-                {s.toolResult && !s.toolResult.ok && <span className="agent-err-detail">{s.toolResult.error}</span>}
-              </div>
-            )}
-            {s.kind === "text" && <div className="agent-bubble assistant">{s.text}</div>}
-            {s.kind === "error" && <div className="agent-bubble error">{s.text}</div>}
-            {s.kind === "chart" && s.chart && (
-              <div className="agent-chart">
-                <div className="panel-head"><h3>{s.chart.title}</h3></div>
-                <TimeSeriesChart rows={s.chart.rows} series={s.chart.series} pal={pal} height={360} />
-              </div>
-            )}
-          </div>
-        ))}
+
+        <div className="agent-graph-container">
+          {graph.layers.length === 0 ? (
+            <div className="agent-graph-empty">
+              <p>Ask the agent to graph something.</p>
+              <p className="note">e.g. "show liquidity vs gold", "show me TSLA", "debt for Japan"</p>
+            </div>
+          ) : (
+            <GraphCanvas state={graph} />
+          )}
+        </div>
       </div>
 
-      <form className="agent-input-row" onSubmit={onSubmit}>
-        <input
-          className="agent-input"
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={live ? "Ask the live glm-5.2 agent…" : "Ask the stub agent…"}
-          disabled={running}
-          aria-label="Ask the agent"
-        />
-        <button type="submit" className="agent-send" disabled={running || !input.trim()}>
-          {running ? "…" : "Send"}
-        </button>
-      </form>
-    </section>
+      {/* CHAT — right panel */}
+      <div className="agent-chat-panel">
+        <div className="agent-transcript" ref={chatScrollRef}>
+          {chatSteps.length === 0 && (
+            <div className="agent-empty">
+              Try: "Show liquidity vs gold", "Show me TSLA", or "Debt for Japan".
+            </div>
+          )}
+          {chatSteps.map((s) => (
+            <div key={s.id} className={`agent-step agent-step-${s.kind}`}>
+              {s.kind === "user" && <div className="agent-bubble user">{s.text}</div>}
+              {s.kind === "tool" && <div className="agent-step-tool">{s.text}</div>}
+              {s.kind === "text" && <div className="agent-bubble assistant">{s.text}</div>}
+              {s.kind === "error" && <div className="agent-bubble error">{s.text}</div>}
+            </div>
+          ))}
+        </div>
+
+        <form className="agent-input-row" onSubmit={onSubmit}>
+          <input
+            className="agent-input"
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={live ? "Ask the live glm-5.2 agent…" : "Ask the stub agent…"}
+            disabled={running}
+            aria-label="Ask the agent"
+          />
+          <button type="submit" className="agent-send" disabled={running || !input.trim()}>
+            {running ? "…" : "Send"}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
