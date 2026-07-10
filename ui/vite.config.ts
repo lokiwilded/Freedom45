@@ -27,16 +27,6 @@ export default defineConfig(({ command, mode }) => {
             });
           },
         },
-        "/yh": {
-          target: "https://query1.finance.yahoo.com",
-          changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/yh/, ""),
-          configure: (proxy, _options) => {
-            proxy.on("proxyReq", (proxyReq, _req, _res) => {
-              proxyReq.setHeader("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36");
-            });
-          },
-        },
       },
     },
   };

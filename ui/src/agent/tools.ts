@@ -116,42 +116,11 @@ export async function executeTool(call: ToolCall): Promise<ToolResult> {
       case "get_stock": {
         const ticker = String(call.arguments.ticker).toUpperCase();
         try {
-          const period1 = -2208988800;
-          const period2 = Math.floor(Date.now() / 1000) + 86400;
-          const url = `/yh/v8/finance/chart/${encodeURIComponent(ticker)}?period1=${period1}&period2=${period2}&interval=1mo`;
-          const res = await fetch(url);
-          if (!res.ok) return fail(`Yahoo returned ${res.status} for ticker '${ticker}'.`);
-          const json = await res.json() as any;
-          const result = json?.chart?.result?.[0];
-          if (!result) {
-            const msg = json?.chart?.error?.description ?? "no data";
-            return fail(`No data for ticker '${ticker}': ${msg}`);
-          }
-          const meta = result.meta ?? {};
-          const ts: number[] = result.timestamp ?? [];
-          const closes: (number | null)[] = result.indicators?.quote?.[0]?.close ?? [];
-          const data = ts
-            .map((t, i) => {
-              const v = closes[i];
-              if (v == null || Number.isNaN(v)) return null;
-              const d = new Date(t * 1000);
-              return { date: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`, value: v };
-            })
-            .filter((x): x is { date: string; value: number } => x !== null);
-          if (!data.length) return fail(`No price history for ticker '${ticker}'.`);
-          return {
-            toolCallId: call.id,
-            name: call.name,
-            ok: true,
-            data: {
-              asset: ticker,
-              label: meta.longName ?? meta.shortName ?? ticker,
-              currency: meta.currency ?? "USD",
-              metric: "level",
-              data,
-              latest: data[data.length - 1],
-            },
-          };
+          const res = await fetch(`/api/stock?ticker=${encodeURIComponent(ticker)}`);
+          if (!res.ok) return fail(`Server returned ${res.status} for ticker '${ticker}'.`);
+          const data = await res.json();
+          if (data.error) return fail(data.error);
+          return { toolCallId: call.id, name: call.name, ok: true, data };
         } catch (e: any) {
           return fail(e?.message ?? `Could not fetch stock '${ticker}'.`);
         }

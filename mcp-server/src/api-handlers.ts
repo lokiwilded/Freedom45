@@ -6,6 +6,7 @@
  */
 
 import { fredProvider } from "./providers/fred.js";
+import { yahooProvider } from "./providers/yahoo.js";
 import { getMoneySupply } from "./tools/macro/getMoneySupply.js";
 import { getGovernmentDebt } from "./tools/macro/getGovernmentDebt.js";
 import { getDebt } from "./tools/macro/getDebt.js";
@@ -34,6 +35,25 @@ export const routes: Record<string, Handler> = {
   "/api/liquidity": async (q) => getGlobalLiquidity(q.get("from") ?? undefined, q.get("to") ?? undefined),
 
   "/api/assets": async (q) => getAssetHistory(q.get("asset") ?? "SP500", q.get("from") ?? undefined, q.get("to") ?? undefined),
+
+  "/api/stock": async (q) => {
+    const ticker = (q.get("ticker") ?? "").toUpperCase();
+    if (!ticker) return { error: "Missing 'ticker' parameter." };
+    try {
+      const points = await yahooProvider.getChart(ticker, "1mo");
+      return {
+        asset: ticker,
+        label: ticker,
+        currency: "USD",
+        metric: "level",
+        count: points.length,
+        data: points,
+        latest: points[points.length - 1] ?? null,
+      };
+    } catch (e: any) {
+      return { asset: ticker, error: e?.message ?? `Could not fetch ticker '${ticker}'.` };
+    }
+  },
 
   "/api/elasticity": async (q) =>
     getLiquidityElasticity(

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Component, useEffect, useRef, useState } from "react";
 import type { ChatMessage, GraphState, ToolResult, Agent } from "./types";
 import { AVAILABLE_TOOLS, executeTool } from "./tools";
 import { OllamaAgent } from "./ollama";
@@ -21,6 +21,28 @@ function makeId(): string {
 }
 
 const MAX_TURNS = 10;
+
+// Error boundary — prevents white screen on any React crash.
+class PageErrorBoundary extends Component<{ children: React.ReactNode }, { hasError: boolean; message: string }> {
+  state = { hasError: false, message: "" };
+  static getDerivedStateFromError(err: any) {
+    return { hasError: true, message: err?.message ?? String(err) };
+  }
+  componentDidCatch(err: any) {
+    console.error("AgentPage crashed:", err);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="agent-graph-empty" style={{ gridArea: "1 / 1 / -1 / -1" }}>
+          <p>Something went wrong: {this.state.message}</p>
+          <button type="button" className="agent-clear-btn" onClick={() => window.location.reload()}>Reload</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function AgentPage() {
   const [settings, setSettings] = useState<AgentSettings>(loadAgentSettings);
@@ -142,6 +164,7 @@ export default function AgentPage() {
   }
 
   return (
+    <PageErrorBoundary>
     <div className="agent-split">
       {/* GRAPH — dominant left panel */}
       <div className="agent-graph-panel">
@@ -220,5 +243,6 @@ export default function AgentPage() {
         </form>
       </div>
     </div>
+    </PageErrorBoundary>
   );
 }
