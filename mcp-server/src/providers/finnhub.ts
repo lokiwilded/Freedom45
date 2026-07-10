@@ -296,6 +296,13 @@ class FinnhubProvider {
       throw new Error(`Finnhub API error: ${response.status} ${response.statusText}`);
     }
 
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error(
+        `Finnhub API error: expected JSON but received ${contentType || "unknown content type"}`
+      );
+    }
+
     return response.json() as Promise<T>;
   }
 

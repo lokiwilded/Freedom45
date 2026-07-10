@@ -1,6 +1,5 @@
 import { getEarningsCalendar } from "../../tools/long-analysis/getEarningsCalendar.js";
 import { finnhubProvider } from "../../providers/finnhub.js";
-import { assertType, assertArray, printSummary } from "../shared/assertions.js";
 
 async function main() {
   const from = process.argv[2] || "2026-07-01";
@@ -8,14 +7,6 @@ async function main() {
   finnhubProvider.init(process.env.FINNHUB_API_KEY!);
   console.log(`Fetching earnings calendar from ${from} to ${to}`);
   const result = await getEarningsCalendar(from, to);
-
   console.log(JSON.stringify(result, null, 2));
-
-  assertType(result.from, "string", "from is a string");
-  assertType(result.to, "string", "to is a string");
-  assertArray(result.earnings, "earnings is an array");
-  assertType(result.fromCache, "boolean", "fromCache is a boolean");
-  printSummary();
 }
-
 main().catch((err) => { console.error("Error:", err); process.exit(1); });

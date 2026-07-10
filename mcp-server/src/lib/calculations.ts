@@ -70,6 +70,7 @@ export function calculateAlpha(
   benchmarkReturns: number[],
   riskFreeRate: number = 0.02
 ): number {
+  if (tickerReturns.length === 0 || benchmarkReturns.length === 0) return 0;
   const beta = calculateBeta(tickerReturns, benchmarkReturns);
   const annualizedRiskFree = riskFreeRate / 252;
 
@@ -80,13 +81,11 @@ export function calculateAlpha(
 }
 
 export function calculateSharpeRatio(returns: number[], riskFreeRate: number = 0.02): number {
-  if (returns.length === 0) return 0;
+  if (returns.length < 2) return 0;
 
   const annualizedRiskFree = riskFreeRate / 252;
   const excessReturns = returns.map((r) => r - annualizedRiskFree);
   const meanExcess = excessReturns.reduce((s, r) => s + r, 0) / excessReturns.length;
-
-  if (excessReturns.length < 2) return 0;
 
   const variance =
     excessReturns.reduce((sum, r) => sum + Math.pow(r - meanExcess, 2), 0) / excessReturns.length;

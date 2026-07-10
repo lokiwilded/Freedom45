@@ -98,7 +98,7 @@ export async function analyzeValuation(ticker: string): Promise<ValuationResult>
   const peerMedianPE = median(peerMetrics.map((m) => m.peRatioTTM));
   const peerMedianPB = median(peerMetrics.map((m) => m.pbRatioTTM));
   const peerMedianPS = median(peerMetrics.map((m) => m.psRatioTTM));
-  const peerMedianEV = median(peerMetrics.map((m) => m.enterpriseValueEBITDATTM));
+  const peerMedianEV = median(peerMetrics.map((m) => m.evEbitdaTTM));
   const peerMedianDiv = median(peerMetrics.map((m) => m.dividendYieldTTM));
 
   const components: Partial<ValuationComponentScores> = {};
@@ -135,13 +135,13 @@ export async function analyzeValuation(ticker: string): Promise<ValuationResult>
   }
 
   if (
-    tickerMetrics.enterpriseValueEBITDATTM !== null &&
-    tickerMetrics.enterpriseValueEBITDATTM > 0 &&
+    tickerMetrics.evEbitdaTTM !== null &&
+    tickerMetrics.evEbitdaTTM > 0 &&
     peerMedianEV !== null &&
     peerMedianEV > 0
   ) {
     components.evEbitda = linearScale(
-      tickerMetrics.enterpriseValueEBITDATTM,
+      tickerMetrics.evEbitdaTTM,
       peerMedianEV * 0.5,
       peerMedianEV * 1.5
     );
@@ -197,7 +197,7 @@ export async function analyzeValuation(ticker: string): Promise<ValuationResult>
         pe: tickerMetrics.peRatioTTM,
         pb: tickerMetrics.pbRatioTTM,
         ps: tickerMetrics.psRatioTTM,
-        evEbitda: tickerMetrics.enterpriseValueEBITDATTM,
+        evEbitda: tickerMetrics.evEbitdaTTM,
         dividendYield: tickerMetrics.dividendYieldTTM,
       },
       peerMedian: {
