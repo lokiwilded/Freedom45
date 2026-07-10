@@ -1,11 +1,11 @@
 # Freedom45
 
-**A macro-liquidity research platform + trading-intelligence MCP server.**
+**A macro-liquidity research platform + trading-intelligence MCP server + AI graphing agent.**
 
 Track how much money the world's central banks and governments have created, how much debt
 sits under every major economy, and how much the world's assets (stocks, indexes, gold)
-actually moved with it — then explore it in a live dashboard, query it from an AI assistant,
-or hit it as a plain REST API.
+actually moved with it — then explore it in a live dashboard, ask an AI agent to graph it,
+query it from an AI assistant, or hit it as a plain REST API.
 
 ### 🌐 Live dashboard → **https://lokiwilded.github.io/Freedom45/**
 
@@ -27,6 +27,7 @@ sourced data:
 ### What you can build with it
 
 - A **liquidity dashboard** (already built) — hero stats, QE-episode breakdowns, movement stats, debt-by-sector.
+- An **AI graphing agent** (already built) — tell it "show liquidity vs gold" or "show me TSLA" and it calls the data tools, projects each series onto a live TradingView chart canvas, and writes an explanation. Desmos-style: the graph builds incrementally as the agent works.
 - An **AI research assistant** — point Claude at the MCP server and ask "how did gold move during QE3?" or "show me Japan's debt by sector."
 - Your **own charts / notebooks / bots** — the REST API returns clean JSON for any of it.
 - **Congressional-trade & insider screens** — outlier-scored trades with live prices.
@@ -39,6 +40,7 @@ sourced data:
 - [Quick start](#quick-start)
 - [Three ways to use it](#three-ways-to-use-it)
 - [The dashboard](#the-dashboard)
+- [The AI graphing agent](#the-ai-graphing-agent)
 - [How the 3.85 multiplier is calculated](#how-the-385-multiplier-is-calculated)
 - [How data flows](#how-data-flows)
 - [Data sources](#data-sources)
@@ -60,7 +62,7 @@ sourced data:
 ```bash
 git clone https://github.com/lokiwilded/Freedom45.git
 cd Freedom45
-cp .env.example .env      # add FRED_API_KEY (free) and FINNHUB_API_KEY (free)
+cp .env.example .env      # add FRED_API_KEY, FINNHUB_API_KEY, OLLAMA_API_KEY (all free)
 
 # API + dashboard (two terminals)
 cd mcp-server && npm install && npm run serve      # REST API on :8787
@@ -68,7 +70,8 @@ cd ui          && npm install && npm run dev       # dashboard on :5173
 ```
 
 Open **http://localhost:5173**. Keys: [FRED](https://fred.stlouisfed.org/docs/api/api_key.html)
-(macro), [Finnhub](https://finnhub.io) (stock tools). **Node.js 22+** required (built-in `node:sqlite`).
+(macro), [Finnhub](https://finnhub.io) (stock tools), [Ollama Cloud](https://ollama.com/cloud)
+(AI agent). **Node.js 22+** required (built-in `node:sqlite`).
 
 ---
 
@@ -77,8 +80,9 @@ Open **http://localhost:5173**. Keys: [FRED](https://fred.stlouisfed.org/docs/ap
 | Way | What it is | Entry point |
 |---|---|---|
 | **MCP server** | 29 tools an AI assistant can call | `mcp-server/src/index.ts` |
-| **REST API** | Read-only JSON over the macro tools | `mcp-server/src/http.ts` → `:8787` |
-| **Dashboard** | Vite + React + Recharts web app | `ui/` → GitHub Pages |
+| **REST API** | Read-only JSON over the macro tools + stock lookup | `mcp-server/src/http.ts` → `:8787` |
+| **Dashboard** | Vite + React web app (Recharts + lightweight-charts) | `ui/` → GitHub Pages |
+| **AI agent** | Browser-side agent that graphs data on a live canvas | `ui/src/agent/` (separate, swappable) |
 
 All three share the same data layer, so they never drift. Everything runs on **free** sources.
 
@@ -101,6 +105,63 @@ Single page, light/dark, mobile-friendly:
 
 In production it reads static JSON baked at build time (Pages can't run a server); in dev it hits
 the live API.
+
+---
+
+## The AI graphing agent
+
+A second tab on the dashboard ("Ask") with a **Desmos-style graph canvas** powered by TradingView
+lightweight-charts. You type a natural-language request and the agent calls data tools, projects
+each result onto the chart **incrementally** (you watch series appear one by one), then writes an
+explanation.
+
+### How it works
+
+```
+User: "show liquidity vs gold"
+  → agent calls get_liquidity     → liquidity area appears on graph (left axis, $T)
+  → agent calls get_asset("GOLD") → gold line appears on graph (right axis)
+  → agent writes 2-3 paragraph explanation in the chat panel
+```
+
+The agent runs an **agentic loop** (up to 10 turns): each turn it decides which tool to call next,
+executes it, projects the result, then decides what to call next. The graph accumulates layers
+across questions — ask "now show me TSLA" and it adds to the same canvas. A "Clear graph" button
+resets.
+
+### What it can graph
+
+| Request | Tools called | Graph result |
+|---|---|---|
+| "show liquidity" | `get_liquidity` | Area series, left axis ($T) |
+| "show liquidity vs gold" | `get_liquidity` + `get_asset` | Dual-axis: liquidity area + gold line |
+| "show me TSLA" | `get_stock` | TSLA monthly closes via Yahoo Finance |
+| "debt for Japan" | `get_debt` | Government debt line (% of GDP) |
+| "how sensitive is SP500 to liquidity" | `get_elasticity` | YoY% histogram |
+
+### Architecture (fully separate from the MCP server)
+
+All agent code lives in `ui/src/agent/` — one swappable folder:
+
+```
+ui/src/agent/
+├── types.ts          # Agent interface (step/summarize) + GraphLayer/GraphState types
+├── ollama.ts         # OllamaAgent — calls glm-5.2 via /llm dev proxy
+├── stub.ts           # StubAgent — keyword-based, works with zero API key
+├── tools.ts          # Tool specs + browser executors (fetch /api/* + /api/stock)
+├── projectors.ts     # Convert tool results → graph layers
+├── GraphCanvas.tsx   # TradingView lightweight-charts wrapper (pan/zoom/crosshair)
+├── AgentPage.tsx     # Chat + graph split layout, agentic loop
+└── settings.ts       # Dev/prod config detection
+```
+
+- **Swappable**: replace `ollama.ts` with any `Agent` impl (OpenAI, local Ollama, etc.) — the UI
+  doesn't change.
+- **Separable**: deleting `ui/src/agent/` + the tab toggle in `App.tsx` fully removes the agent.
+  The MCP server, skills, and dashboard are untouched.
+- **Dev-only live LLM**: the Vite dev proxy (`/llm`) injects `OLLAMA_API_KEY` from `.env`
+  server-side. In production (static Pages), the StubAgent runs instead.
+- **Error boundaries**: chart and page-level boundaries prevent white-screen crashes.
 
 ---
 
@@ -268,6 +329,7 @@ curl "http://localhost:8787/api/assets?asset=NASDAQ"
 | `GET /api/debt?country=US&sector=total` | Debt series + sector breakdown |
 | `GET /api/government-debt?country=US` | US public debt (absolute USD) |
 | `GET /api/assets?asset=SP500` | Asset/index history |
+| `GET /api/stock?ticker=TSLA` | Individual stock history via Yahoo Finance |
 | `GET /api/elasticity?driver=global_liquidity&asset=SP500` | Elasticity levels + regression |
 
 Hitting an unknown path returns `404` with the full route list, so `GET /api/` self-documents.
@@ -292,7 +354,9 @@ Hitting an unknown path returns `404` with the full route list, so `GET /api/` s
 Then ask your assistant things like *"global liquidity vs the Nasdaq since 2010"*,
 *"Japan's debt by sector"*, or *"congress trades in NVDA with outlier score over 60."*
 
-**As the dashboard** — `npm run serve` (mcp-server) + `npm run dev` (ui) → localhost:5173.
+**As the dashboard + agent** — `npm run serve` (mcp-server) + `npm run dev` (ui) → localhost:5173.
+The "Dashboard" tab shows the static charts; the "Ask" tab is the AI graphing agent (needs
+`OLLAMA_API_KEY` in `.env` for live LLM; falls back to StubAgent without it).
 
 **Tests** (from `mcp-server/`): `npm run test:offline` (no network) runs registry + cache +
 calculation tests. Live tool checks: `test:liquidity`, `test:debt`, `test:assets`,
@@ -332,7 +396,13 @@ Freedom45/
 │       ├── tools/get-congress-trades.ts
 │       ├── scoring/              # outlier + series-stats + elasticity math
 │       └── scripts/dump-static.ts
-├── ui/                           # Vite + React + Recharts dashboard
+├── ui/                           # Vite + React dashboard + AI agent
+│   ├── src/agent/                # swappable AI graphing agent (separate from MCP server)
+│   │   ├── GraphCanvas.tsx       # TradingView lightweight-charts canvas
+│   │   ├── ollama.ts / stub.ts   # Agent impls (step/summarize interface)
+│   │   ├── tools.ts              # browser-side tool executors (fetch /api/*)
+│   │   ├── projectors.ts         # tool results → graph layers
+│   │   └── AgentPage.tsx         # graph-dominant split layout + agentic loop
 │   └── public/data/              # baked JSON snapshot (served on Pages)
 ├── skills/  plans/               # tool docs & design notes
 └── .github/workflows/deploy.yml  # Pages deploy
