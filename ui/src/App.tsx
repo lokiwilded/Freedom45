@@ -5,6 +5,7 @@ import { useTheme } from "./theme";
 import { DebtStack, TimeSeriesChart } from "./charts";
 import type { SeriesConfig, TimeSeriesRow } from "./charts";
 import { Tile, SeriesStatCard, InjectionCard, ReflexivityExplainer, InfoDot } from "./components";
+import AgentPage from "./agent/AgentPage";
 
 const GROUP_ORDER = ["Macro", "US", "Europe", "Asia", "Commodity"];
 
@@ -53,6 +54,7 @@ export default function App() {
   const [country, setCountry] = useState("US");
   const [debtRows, setDebtRows] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
+  const [tab, setTab] = useState<"dashboard" | "agent">("dashboard");
 
   // Generic time-series chart state.
   const [liquidity, setLiquidity] = useState<LiquidityResp | null>(null);
@@ -132,10 +134,20 @@ export default function App() {
         <p className="sub">How much global money and debt have grown — and how much the assets moved with them. Every number is computed from the full history and updates as new data lands. Sources: FRED · BIS · Yahoo · DBnomics.</p>
       </header>
 
-      {err && <div className="err">Couldn't reach the API ({err}). Is it running on :8787? Run <code>npm run serve</code> in mcp-server.</div>}
+      {err && tab === "dashboard" && <div className="err">Couldn't reach the API ({err}). Is it running on :8787? Run <code>npm run serve</code> in mcp-server.</div>}
 
-      {/* REFLEXIVITY EXPLAINER */}
-      <ReflexivityExplainer refl={refl} />
+      {/* TAB SWITCHER — simple now, router later */}
+      <nav className="tabs">
+        <button type="button" className={tab === "dashboard" ? "on" : ""} onClick={() => setTab("dashboard")}>Dashboard</button>
+        <button type="button" className={tab === "agent" ? "on" : ""} onClick={() => setTab("agent")}>Ask</button>
+      </nav>
+
+      {tab === "agent" ? (
+        <AgentPage />
+      ) : (
+        <>
+          {/* REFLEXIVITY EXPLAINER */}
+          <ReflexivityExplainer refl={refl} />
 
       {/* HERO SNAPSHOT */}
       <section className="tiles">
@@ -213,6 +225,8 @@ export default function App() {
       <footer className="foot">
         Movement stats are descriptive history, not predictions. Growth over long spans is dominated by the trend; a big "best year" (e.g. central-bank liquidity in 2008) usually coincides with a crisis response, not a boom.
       </footer>
+        </>
+      )}
     </div>
   );
 }
