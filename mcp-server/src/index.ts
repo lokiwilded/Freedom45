@@ -10,6 +10,7 @@ import { getCongressTradesTool } from "./tools/get-congress-trades.js";
 import { longAnalysisTools } from "./tools/long-analysis/index.js";
 import { macroTools } from "./tools/macro/index.js";
 import { comboTools } from "./tools/combo/index.js";
+import { longTermTools } from "./tools/long-term/index.js";
 
 // Initialize all providers (Finnhub, FRED, Yahoo fallbacks) and register them
 // with the data registry for automatic fallback.
@@ -52,6 +53,9 @@ for (const tool of macroTools) {
   tools[tool.name] = tool;
 }
 for (const tool of comboTools) {
+  tools[tool.name] = tool;
+}
+for (const tool of longTermTools) {
   tools[tool.name] = tool;
 }
 

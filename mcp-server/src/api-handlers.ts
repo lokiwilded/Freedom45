@@ -22,6 +22,10 @@ import { scanLiquidityRegime } from "./tools/combo/scanLiquidityRegime.js";
 import { analyzeCongressNewsCatalyst } from "./tools/combo/analyzeCongressNewsCatalyst.js";
 import { compareSectorValuation } from "./tools/combo/compareSectorValuation.js";
 import { getSectorRelativeStrength } from "./tools/combo/getSectorRelativeStrength.js";
+import { analyzeEarningsQuality } from "./tools/long-term/analyzeEarningsQuality.js";
+import { analyzeCapitalAllocation } from "./tools/long-term/analyzeCapitalAllocation.js";
+import { analyzeBalanceSheetHealth } from "./tools/long-term/analyzeBalanceSheetHealth.js";
+import { analyzeCompounderScore } from "./tools/long-term/analyzeCompounderScore.js";
 
 initProviders();
 
@@ -261,4 +265,18 @@ export const routes: Record<string, Handler> = {
       (q.get("benchmark") ?? "SP500").toUpperCase(),
       num(q.get("years")) ?? 3
     ),
+
+  // ── Long-term analysis tools ──
+
+  "/api/long-term/earnings-quality": async (q) =>
+    analyzeEarningsQuality((q.get("ticker") ?? "").toUpperCase(), num(q.get("years")) ?? 10),
+
+  "/api/long-term/capital-allocation": async (q) =>
+    analyzeCapitalAllocation((q.get("ticker") ?? "").toUpperCase(), num(q.get("years")) ?? 10),
+
+  "/api/long-term/balance-sheet-health": async (q) =>
+    analyzeBalanceSheetHealth((q.get("ticker") ?? "").toUpperCase(), num(q.get("years")) ?? 10),
+
+  "/api/long-term/compounder-score": async (q) =>
+    analyzeCompounderScore((q.get("ticker") ?? "").toUpperCase(), num(q.get("years")) ?? 10),
 };
