@@ -26,6 +26,7 @@ export interface InsiderTransactionsResult {
     price: number;
     value: number;
     isBuy: boolean;
+    isSell: boolean;
   }[];
   fromCache: boolean;
 }
@@ -57,6 +58,7 @@ export async function getInsiderTransactions(
       price,
       value: computedValue,
       isBuy: t.isBuy || false,
+      isSell: t.isSell || false,
     };
   });
 

@@ -106,7 +106,7 @@ export async function findSmartMoneyConvergence(
 
   // Insider signal — use share change direction when dollar values are unavailable.
   const insiderBuys = enrichedTx.filter((t) => t.isBuy);
-  const insiderSells = enrichedTx.filter((t) => !t.isBuy);
+  const insiderSells = enrichedTx.filter((t) => t.isSell);
   const insiderNetBuy = insiderBuys.reduce((s, t) => s + t.value, 0) - insiderSells.reduce((s, t) => s + t.value, 0);
   const insiderNetChange = insiderBuys.reduce((s, t) => s + t.change, 0) - insiderSells.reduce((s, t) => s + Math.abs(t.change), 0);
   const insiderSignal: SmartMoneyConvergenceResult["signals"]["insider"] =

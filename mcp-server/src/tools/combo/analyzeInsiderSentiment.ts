@@ -93,7 +93,7 @@ export async function analyzeInsiderSentiment(
   });
 
   const buys = enrichedTx.filter((t) => t.isBuy);
-  const sells = enrichedTx.filter((t) => !t.isBuy);
+  const sells = enrichedTx.filter((t) => t.isSell);
 
   const sumValue = (arr: typeof tx) =>
     arr.reduce((sum, t) => {
@@ -134,9 +134,10 @@ export async function analyzeInsiderSentiment(
   let verdict = pressureLabel(buySellRatio ?? 0, noData);
   if (noData) verdict = "No Data";
 
-  // Daily net-buy series for graphing.
+  // Daily net-buy series for graphing — only open-market buys/sells.
   const byDate = new Map<string, { netBuys: number; netBuyValue: number }>();
   for (const t of enrichedTx) {
+    if (!t.isBuy && !t.isSell) continue;
     const d = t.transactionDate || t.filingDate;
     if (!d) continue;
     const v = t.value > 0 ? t.value : Math.abs(t.change) * (t.price > 0 ? t.price : (latestPrice ?? 0));

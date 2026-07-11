@@ -23,6 +23,7 @@ export interface InsiderTxRow {
   price: number;
   value: number;
   isBuy: boolean;
+  isSell: boolean;
 }
 
 export async function fetchInsiderTransactions(
@@ -33,19 +34,35 @@ export async function fetchInsiderTransactions(
   const result = await fetchData<any[]>("insider_transactions", { ticker, from, to });
   if (!result || !result.data) return null;
 
-  const transactions: InsiderTxRow[] = result.data.map((t) => ({
-    symbol: t.symbol || "",
-    name: t.name || "",
-    insiderName: t.name || t.insiderName || "",
-    share: t.share || 0,
-    change: t.change || 0,
-    filingDate: t.filingDate || "",
-    transactionDate: t.transactionDate || "",
-    transactionCode: t.transactionCode || "",
-    price: t.price || 0,
-    value: t.value || 0,
-    isBuy: (t.transactionCode || "").toUpperCase().startsWith("P"),
-  }));
+  // SEC transaction codes:
+  //   P = open-market purchase (BUY)
+  //   S = open-market sale (SELL)
+  //   M = option exercise (NEUTRAL — not a market transaction)
+  //   G = gift (NEUTRAL)
+  //   F = tax withholding (NEUTRAL — involuntary)
+  //   D = distribution (NEUTRAL)
+  //   A = grant (NEUTRAL)
+  //   J = other (NEUTRAL)
+  const BUY_CODES = new Set(["P", "P-INV", "P-OP"]);
+  const SELL_CODES = new Set(["S", "S-INV", "S-OP"]);
+
+  const transactions: InsiderTxRow[] = result.data.map((t) => {
+    const code = (t.transactionCode || "").toUpperCase();
+    return {
+      symbol: t.symbol || "",
+      name: t.name || "",
+      insiderName: t.name || t.insiderName || "",
+      share: t.share || 0,
+      change: t.change || 0,
+      filingDate: t.filingDate || "",
+      transactionDate: t.transactionDate || "",
+      transactionCode: t.transactionCode || "",
+      price: t.price || 0,
+      value: t.value || 0,
+      isBuy: BUY_CODES.has(code),
+      isSell: SELL_CODES.has(code),
+    };
+  });
 
   return { transactions, source: result.source, fromCache: result.fromCache };
 }
