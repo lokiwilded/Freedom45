@@ -43,6 +43,7 @@ export interface InsiderSentimentResult {
   latestPrice: number | null;
   marketCap: number | null;
   series: { date: string; netBuys: number; netBuyValue: number }[];
+  nonMarketTransactions: { insiderName: string; date: string; code: string; codeDescription: string; shares: number; estimatedValue: number }[];
   metadata: {
     generatedAt: string;
     fromCache: boolean;
@@ -58,6 +59,19 @@ function isOfficer(name: string): boolean {
 function isDirector(name: string): boolean {
   return name.toUpperCase().includes("DIRECTOR");
 }
+
+const TX_CODE_DESCRIPTIONS: Record<string, string> = {
+  M: "Option exercise",
+  G: "Gift",
+  F: "Tax withholding",
+  D: "Distribution",
+  A: "Grant",
+  J: "Other",
+  C: "Conversion",
+  W: "Warrant",
+  L: "Small purchase (<$10k)",
+  H: "Expiration of derivative",
+};
 
 function daysAgo(days: number): string {
   const d = new Date();
@@ -94,6 +108,22 @@ export async function analyzeInsiderSentiment(
 
   const buys = enrichedTx.filter((t) => t.isBuy);
   const sells = enrichedTx.filter((t) => t.isSell);
+  const nonMarket = enrichedTx.filter((t) => !t.isBuy && !t.isSell);
+
+  const nonMarketTransactions = nonMarket
+    .map((t) => {
+      const code = (t.transactionCode || "").toUpperCase();
+      const estVal = t.value > 0 ? t.value : Math.abs(t.change) * (t.price > 0 ? t.price : (latestPrice ?? 0));
+      return {
+        insiderName: t.insiderName || t.name,
+        date: t.transactionDate || t.filingDate,
+        code,
+        codeDescription: TX_CODE_DESCRIPTIONS[code] ?? code,
+        shares: Math.abs(t.change),
+        estimatedValue: r(estVal, 0) ?? 0,
+      };
+    })
+    .sort((a, b) => b.estimatedValue - a.estimatedValue);
 
   const sumValue = (arr: typeof tx) =>
     arr.reduce((sum, t) => {
@@ -154,7 +184,8 @@ export async function analyzeInsiderSentiment(
 
   const summary = noData
     ? `${normalizedTicker}: no insider transactions reported in the last ${lookbackDays} days.`
-    : `${normalizedTicker} shows ${verdict.toLowerCase()} over the last ${lookbackDays} days: ${buys.length} purchase${buys.length === 1 ? "" : "s"} vs ${sells.length} sale${sells.length === 1 ? "" : "s"}, with net insider buy value of $${r(Math.abs(netBuyValue), 2) ?? 0}M.`;
+    : `${normalizedTicker} shows ${verdict.toLowerCase()} over the last ${lookbackDays} days: ${buys.length} purchase${buys.length === 1 ? "" : "s"} vs ${sells.length} sale${sells.length === 1 ? "" : "s"}, with net insider ${netBuyValue >= 0 ? "buy" : "sell"} value of $${r(Math.abs(netBuyValue) / 1e6, 1) ?? 0}M.` +
+      (nonMarketTransactions.length > 0 ? ` ${nonMarketTransactions.length} non-market transaction${nonMarketTransactions.length === 1 ? "" : "s"} (exercises, grants, gifts) also reported — see Non-Market Transactions section.` : "");
 
   return {
     ticker: normalizedTicker,
@@ -180,6 +211,7 @@ export async function analyzeInsiderSentiment(
     latestPrice: r(latestPrice, 2),
     marketCap: marketCap ? r(marketCap / 1e6, 1) : null,
     series,
+    nonMarketTransactions,
     metadata: {
       generatedAt: new Date().toISOString(),
       fromCache: insiderRes.status === "fulfilled" && insiderRes.value ? insiderRes.value.fromCache : false,

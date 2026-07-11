@@ -295,7 +295,7 @@ function fmtVal(v: any): string {
 
 function renderTable(obj: Record<string, any>): { key: string; value: string }[] {
   return Object.entries(obj)
-    .filter(([k]) => !["series", "metadata", "metrics", "tradesWithNews", "table", "highlights", "details", "signals", "percentiles", "peg", "valueTrapFlags"].includes(k))
+    .filter(([k]) => !["series", "metadata", "metrics", "nonMarketTransactions", "tradesWithNews", "table", "highlights", "details", "signals", "percentiles", "peg", "valueTrapFlags"].includes(k))
     .map(([k, v]) => {
       const labels: Record<string, string> = {
         ticker: "Ticker",
@@ -535,6 +535,16 @@ function SubTable({ data, pal }: { data: any; pal: any }) {
       rows: data.table.map((row: any) => ({
         label: row.ticker,
         value: cols.filter((c) => c !== "ticker").map((c) => `${c}: ${fmtVal(row[c])}`).join("  ·  "),
+      })),
+    });
+  }
+
+  if (data.nonMarketTransactions && Array.isArray(data.nonMarketTransactions) && data.nonMarketTransactions.length > 0) {
+    blocks.push({
+      title: "Non-Market Transactions (exercises, grants, gifts — excluded from buy/sell score)",
+      rows: data.nonMarketTransactions.map((t: any) => ({
+        label: `${t.insiderName} — ${t.date}`,
+        value: `${t.codeDescription} (${t.code}) · ${fmtVal(t.shares)} shares · ~$${fmtVal(t.estimatedValue)}`,
       })),
     });
   }
