@@ -9,6 +9,7 @@ interface ToolDef {
   name: string;
   group: "combo" | "long-term";
   description: string;
+  explanation: string;
   params: { key: string; label: string; type: "text" | "number"; default: string; placeholder?: string; optional?: boolean }[];
   run: (params: Record<string, string>) => Promise<any>;
 }
@@ -19,6 +20,17 @@ const TOOLS: ToolDef[] = [
     name: "Insider Sentiment",
     group: "combo",
     description: "Insider buying/selling pressure with a descriptive verdict and 0-100 score.",
+    explanation: `WHAT IT DOES: Scores whether company insiders (CEO, CFO, directors, officers) are buying or selling their own stock over a lookback window.
+
+DATA SOURCES: Finnhub insider transactions + company profile (market cap) + stock quote (for dollar value estimation).
+
+WHAT IT SHOWS: A verdict (Heavy Accumulation → Heavy Distribution), a 0-100 score, buy/sell counts, officer vs director splits, largest buy, and a daily net-buy time series chart.
+
+USE CASES:
+• "Are AAPL insiders buying or selling?" — check if leadership has conviction
+• Spot insider selling before earnings or bad news
+• Confirm insider buying as a bullish signal during dips
+• Compare insider activity across multiple tickers`,
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
       { key: "lookbackDays", label: "Lookback (days)", type: "number", default: "90" },
@@ -30,6 +42,17 @@ const TOOLS: ToolDef[] = [
     name: "Earnings Momentum",
     group: "combo",
     description: "Earnings surprises + analyst recommendations + price targets + upgrades/downgrades.",
+    explanation: `WHAT IT DOES: Combines earnings beats/misses, analyst recommendation trends, price targets, and upgrade/downgrade activity into a single momentum score.
+
+DATA SOURCES: Finnhub earnings surprise + recommendation trends + price target + upgrade/downgrade.
+
+WHAT IT SHOWS: A verdict (Weak → Strong), 0-100 score, beat/miss streaks, avg surprise %, buy rating % trend, price target mean + change, upgrade/downgrade counts, and a period-by-period series.
+
+USE CASES:
+• "Is NVDA's earnings momentum improving?" — see if analysts are getting more bullish
+• Spot companies with consistent earnings beats (beat streak)
+• Track analyst upgrades vs downgrades over time
+• See if price targets are rising or falling`,
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
     ],
@@ -40,6 +63,18 @@ const TOOLS: ToolDef[] = [
     name: "Smart Money Convergence",
     group: "combo",
     description: "Insiders + institutions + funds + Congress alignment on a ticker.",
+    explanation: `WHAT IT DOES: Detects when multiple "smart money" groups — insiders, institutions, funds, and Congress — are all buying or selling the same stock.
+
+DATA SOURCES: Finnhub insider transactions + institutional ownership + fund ownership + congressional trading.
+
+WHAT IT SHOWS: A convergence verdict (No Convergence → Very High Convergence), 0-100 score, per-group signals (buying/selling/neutral/no_data), and a summary table.
+
+LIMITATION: Institutional, fund, and Congress data require Finnhub premium (403 on free tier). Only the insider signal works on the free tier.
+
+USE CASES:
+• "Are insiders, institutions, and Congress all buying NVDA?" — find consensus
+• Spot when smart money is aligned (high convergence = strong signal)
+• Detect divergence (insiders selling while institutions buying = mixed signal)`,
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
       { key: "lookbackDays", label: "Lookback (days)", type: "number", default: "90" },
@@ -51,6 +86,17 @@ const TOOLS: ToolDef[] = [
     name: "Shareholder Yield",
     group: "combo",
     description: "Dividend yield + implied buyback proxy yield with sustainability flag.",
+    explanation: `WHAT IT DOES: Computes total shareholder yield = dividend yield + implied buyback yield, with a sustainability assessment.
+
+DATA SOURCES: Finnhub dividends (or Yahoo Finance fallback) + stock splits + fundamental metrics + stock quote.
+
+WHAT IT SHOWS: A yield verdict (No Yield → Very High Yield), 0-100 score, dividend yield %, implied buyback yield %, total yield %, payout ratio, sustainability flag, and an annual yield series.
+
+USE CASES:
+• "What's the total shareholder yield for KO?" — see dividends + buybacks combined
+• Check if a company's dividend is sustainable (payout ratio analysis)
+• Compare shareholder returns across income stocks
+• Spot companies returning capital via buybacks vs dividends`,
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
       { key: "years", label: "Years", type: "number", default: "5" },
@@ -62,6 +108,17 @@ const TOOLS: ToolDef[] = [
     name: "Liquidity Regime Scanner",
     group: "combo",
     description: "Global liquidity regime + M2 + asset impact with risk-on score.",
+    explanation: `WHAT IT DOES: Scans the current global liquidity environment (central bank balance sheets + M2) and its impact on a specific asset class.
+
+DATA SOURCES: FRED global liquidity (Fed + ECB + BOJ) + US M2 + Yahoo asset history + liquidity elasticity regression.
+
+WHAT IT SHOWS: A regime verdict (Expansion Risk-On → Contraction Risk-Off), 0-100 risk-on score, liquidity YoY %, M2 YoY %, asset YoY %, liquidity beta + R², and a merged YoY time series chart.
+
+USE CASES:
+• "Is global liquidity expanding or contracting?" — the macro backdrop
+• "How does SP500 respond to liquidity changes?" — sensitivity analysis
+• Spot regime shifts (expansion → contraction) before they're obvious
+• Compare how different assets (GOLD, NASDAQ, SP500) react to liquidity`,
     params: [
       { key: "asset", label: "Asset key", type: "text", default: "SP500", placeholder: "SP500, GOLD, NASDAQ…" },
       { key: "from", label: "From (optional)", type: "text", default: "", placeholder: "2003-01-01", optional: true },
@@ -74,6 +131,19 @@ const TOOLS: ToolDef[] = [
     name: "Congress News Catalyst",
     group: "combo",
     description: "Congressional trades matched to nearby news events with catalyst scores.",
+    explanation: `WHAT IT DOES: Matches congressional trades to nearby company news events to detect whether politicians may be trading on catalyst information.
+
+DATA SOURCES: Finnhub congressional trading + company news + market news.
+
+WHAT IT SHOWS: A catalyst verdict (High Catalyst Signal → No Clear Catalyst), 0-100 score, trade count, per-trade matches (politician, date, type, amount, matched headline, days offset), and lead/lag statistics.
+
+LIMITATION: Congressional trading data requires Finnhub premium (403 on free tier). Returns "No Data" without it.
+
+USE CASES:
+• "Did Congress members trade NVDA before major news?" — detect timing
+• See if politicians are trading ahead of catalysts (lead days analysis)
+• Match specific trades to specific news headlines
+• Quantify how often Congress trades align with news events`,
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
       { key: "lookbackDays", label: "Lookback (days)", type: "number", default: "90" },
@@ -85,6 +155,17 @@ const TOOLS: ToolDef[] = [
     name: "Sector Valuation Comparison",
     group: "combo",
     description: "Ticker valuation vs sector peers — percentile ranks, PEG, value-trap flags.",
+    explanation: `WHAT IT DOES: Compares a ticker's valuation (P/E, P/B, P/S, EV/EBITDA, PEG) against its sector peers using percentile ranks.
+
+DATA SOURCES: Finnhub peers + fundamental metrics for ticker and up to 5 peers.
+
+WHAT IT SHOWS: A valuation verdict (Deeply Undervalued → Expensive), 0-100 score, percentile ranks for each metric, PEG ratio, value-trap flags, rank-in-sector, and a peer comparison table.
+
+USE CASES:
+• "Is AAPL overvalued vs its sector?" — see percentile ranking
+• Find undervalued stocks within a sector (low percentile = cheap)
+• Spot value traps (cheap but weak growth, thin margins, high debt)
+• Compare a ticker's P/E, P/B, P/S, EV/EBITDA side-by-side with peers`,
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
     ],
@@ -95,6 +176,17 @@ const TOOLS: ToolDef[] = [
     name: "Sector Relative Strength",
     group: "combo",
     description: "Sector proxy relative strength vs benchmark + liquidity sensitivity.",
+    explanation: `WHAT IT DOES: Analyzes a sector proxy's (e.g. XLK) relative strength vs a benchmark (e.g. SP500) and its sensitivity to global liquidity changes.
+
+DATA SOURCES: Finnhub/Yahoo price history for ticker + benchmark + FRED liquidity elasticity.
+
+WHAT IT SHOWS: A rotation verdict (Leading → Lagging), 0-100 score, alpha, beta, Sharpe ratio, liquidity beta + R², ticker vs benchmark return %, months outperforming, and a normalized comparison series chart.
+
+USE CASES:
+• "Is the tech sector (XLK) outperforming the S&P 500?" — sector rotation
+• "How sensitive is gold to liquidity changes?" — macro sensitivity
+• Spot sectors that are leading or lagging the market
+• Compare a stock's performance vs a benchmark over multiple years`,
     params: [
       { key: "ticker", label: "Ticker / asset", type: "text", default: "XLK", placeholder: "e.g. XLK, AAPL" },
       { key: "benchmark", label: "Benchmark", type: "text", default: "SP500" },
@@ -107,6 +199,17 @@ const TOOLS: ToolDef[] = [
     name: "Earnings Quality",
     group: "long-term",
     description: "10+ years of SEC financial data: revenue/EPS CAGR, margin trends, accrual quality, ROE, ROA.",
+    explanation: `WHAT IT DOES: Analyzes 10+ years of SEC filing data to assess whether a company's earnings are high quality — growing, stable, and backed by cash.
+
+DATA SOURCES: SEC EDGAR XBRL companyfacts (free, no key) — Revenues, Net Income, Operating Income, Gross Profit, EPS, R&D, Debt, Equity, Assets, Cash Flow.
+
+WHAT IT SHOWS: A quality verdict (Excellent → Poor), 0-100 score, revenue/EPS CAGR, gross/operating/net margin trends (expanding/contracting/stable), R&D intensity, accrual quality (earnings vs cash flow), earnings volatility, ROE, ROA, debt/equity, current ratio, and an annual financial series chart.
+
+USE CASES:
+• "Is AAPL's earnings quality improving or deteriorating?" — 10-year trend
+• Spot companies with expanding margins (operating leverage)
+• Detect earnings manipulation (high accruals = low quality)
+• Find companies with consistent, low-volatility earnings growth`,
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
       { key: "years", label: "Years", type: "number", default: "10" },
@@ -118,6 +221,18 @@ const TOOLS: ToolDef[] = [
     name: "Capital Allocation",
     group: "long-term",
     description: "How a company allocates capital over 10+ years: dividends, buybacks, R&D, capex, debt reduction.",
+    explanation: `WHAT IT DOES: Evaluates how management allocates capital over 10+ years — dividends, buybacks, R&D, capex, and debt reduction.
+
+DATA SOURCES: SEC EDGAR XBRL companyfacts — Dividends, Buybacks, R&D, Capex, Net Income, Revenue, Debt, Assets, Equity, Shares Outstanding.
+
+WHAT IT SHOWS: An allocation verdict (Exceptional → Value Destructive), 0-100 score, payout ratio, buyback intensity %, R&D/revenue, capex/revenue, reinvestment rate, asset/equity growth, dividend growth CAGR, debt reduction, and an annual allocation series chart.
+
+USE CASES:
+• "Is AAPL's management allocating capital wisely?" — CEO scorecard
+• See if buybacks are happening at the expense of R&D
+• Track whether dividends are growing consistently
+• Spot companies reducing debt vs those levering up
+• Identify "value destructive" management (diluting shares, no returns)`,
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
       { key: "years", label: "Years", type: "number", default: "10" },
@@ -129,6 +244,18 @@ const TOOLS: ToolDef[] = [
     name: "Balance Sheet Health",
     group: "long-term",
     description: "10+ years of balance sheet metrics: current ratio, debt/equity, interest coverage, Altman Z-score.",
+    explanation: `WHAT IT DOES: Analyzes 10+ years of balance sheet data to assess financial health and bankruptcy risk.
+
+DATA SOURCES: SEC EDGAR XBRL companyfacts — Assets, Liabilities, Equity, Debt, Current Assets/Liabilities, Cash, Inventory, Revenue, COGS, EBIT, Interest Expense, Retained Earnings.
+
+WHAT IT SHOWS: A health verdict (Fortress → Distressed), 0-100 score, current ratio, quick ratio, debt/equity, debt/assets, interest coverage, working capital, net debt/EBITDA, Altman Z-score (bankruptcy predictor), asset/inventory turnover, and an annual balance sheet series chart.
+
+USE CASES:
+• "Is AAPL's balance sheet strong enough to survive a downturn?" — stress test
+• Spot companies heading toward distress (low Z-score, high debt)
+• Compare financial strength across competitors
+• Track leverage trends over 10+ years
+• Identify "fortress" balance sheets (cash-rich, low debt)`,
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
       { key: "years", label: "Years", type: "number", default: "10" },
@@ -140,6 +267,18 @@ const TOOLS: ToolDef[] = [
     name: "Compounder Score",
     group: "long-term",
     description: "Compounder quality over 10+ years: revenue/EPS/BV CAGR, avg ROE/ROIC, margin stability, earnings consistency.",
+    explanation: `WHAT IT DOES: Scores whether a company is a true compounder — consistently growing earnings, book value, and dividends at attractive rates with high returns on capital.
+
+DATA SOURCES: SEC EDGAR XBRL companyfacts + Yahoo Finance price history — Revenue, EPS, Equity, Debt, Net Income, Operating Income, Dividends, Buybacks, Capex.
+
+WHAT IT SHOWS: A compounder verdict (Elite → Not a Compounder), 0-100 score, revenue/EPS/book value CAGR, average ROE & ROIC, margin stability, earnings consistency, growth-reinvestment balance, shareholder return years, price CAGR vs earnings CAGR, and an annual growth series chart.
+
+USE CASES:
+• "Is MSFT an elite compounder?" — long-term quality assessment
+• Find companies that compound wealth consistently over 10+ years
+• Compare ROE/ROIC trends to see if returns on capital are improving
+• Spot "fake compounders" (growing via leverage, not organic growth)
+• Identify companies where price has tracked earnings (fair compounding)`,
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
       { key: "years", label: "Years", type: "number", default: "10" },
@@ -276,7 +415,10 @@ function ChartFromSeries({ data, pal }: { data: any; pal: any }) {
 
   if (valueKeys.length === 0) return null;
 
-  const rows: TimeSeriesRow[] = series.map((s) => ({ date: s[dateKey], ...Object.fromEntries(valueKeys.map((k) => [k, s[k]])) }));
+  const rows: TimeSeriesRow[] = series.map((s) => ({
+    date: dateKey === "fiscalYear" ? String(s[dateKey]) : s[dateKey],
+    ...Object.fromEntries(valueKeys.map((k) => [k, s[k]])),
+  }));
   const chartSeries: SeriesConfig[] = valueKeys.map((k, i) => ({
     key: k,
     name: k,
@@ -338,6 +480,35 @@ function SubTable({ data, pal }: { data: any; pal: any }) {
     });
   }
 
+  if (data.metrics && typeof data.metrics === "object") {
+    const labelMap: Record<string, string> = {
+      revenueCagr: "Revenue CAGR %", epsCagr: "EPS CAGR %", bookValueCagr: "Book value CAGR %",
+      grossMarginTrend: "Gross margin trend", netMarginTrend: "Net margin trend",
+      operatingMarginTrend: "Operating margin trend", rdIntensityTrend: "R&D intensity trend",
+      accuralQuality: "Accrual quality", earningsVolatility: "Earnings volatility",
+      debtToEquity: "Debt/equity", currentRatio: "Current ratio", returnOnEquity: "ROE %",
+      returnOnAssets: "ROA %", quickRatio: "Quick ratio", debtToAssets: "Debt/assets",
+      interestCoverage: "Interest coverage (x)", workingCapital: "Working capital ($B)",
+      netDebtToEbitda: "Net debt/EBITDA", altmanZScore: "Altman Z-score",
+      assetTurnover: "Asset turnover", inventoryTurnover: "Inventory turnover",
+      dividendPayoutRatio: "Payout ratio", buybackIntensity: "Buyback intensity %",
+      reinvestmentRate: "Reinvestment rate", rdToRevenue: "R&D/revenue",
+      capexToRevenue: "Capex/revenue", assetGrowth: "Asset growth %",
+      equityGrowth: "Equity growth %", dividendGrowthCagr: "Dividend growth CAGR %",
+      debtReduction: "Debt reduction ($)", roeAvg: "Avg ROE %", roicAvg: "Avg ROIC %",
+      marginStability: "Margin stability", earningsConsistency: "Earnings consistency",
+      growthReinvestmentBalance: "Growth/reinvestment balance",
+      shareholderReturnYears: "Shareholder return years", priceCagr: "Price CAGR %",
+    };
+    blocks.push({
+      title: "Metrics",
+      rows: Object.entries(data.metrics).map(([k, v]) => ({
+        label: labelMap[k] ?? k,
+        value: fmtVal(v),
+      })),
+    });
+  }
+
   if (data.highlights && data.highlights.length) {
     blocks.push({
       title: "Highlights",
@@ -394,6 +565,7 @@ export default function ComboPage() {
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [showInfo, setShowInfo] = useState<string | false>(false);
 
   const tool = TOOLS.find((t) => t.key === toolKey)!;
 
@@ -427,16 +599,18 @@ export default function ComboPage() {
         </div>
 
         {/* Tool selector — grouped */}
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
           {TOOLS.filter((t) => t.group === "combo").map((t) => (
             <button
               key={t.key}
               type="button"
               className={`toggle ${t.key === toolKey ? "on" : ""}`}
-              onClick={() => { setToolKey(t.key); setResult(null); setErr(null); }}
+              onClick={() => { setToolKey(t.key); setResult(null); setErr(null); setShowInfo(false); }}
               style={t.key === toolKey ? { borderColor: "var(--accent)", color: "var(--accent)", fontWeight: 600 } : {}}
+              title={t.description}
             >
               {t.name}
+              <span style={{ marginLeft: 4, opacity: 0.5, fontSize: "0.85em", cursor: "help" }} onClick={(e) => { e.stopPropagation(); setShowInfo(s => s !== t.key ? t.key : false); }}>ⓘ</span>
             </button>
           ))}
           <span style={{ borderLeft: "1px solid var(--border)", margin: "2px 4px" }} />
@@ -445,13 +619,32 @@ export default function ComboPage() {
               key={t.key}
               type="button"
               className={`toggle ${t.key === toolKey ? "on" : ""}`}
-              onClick={() => { setToolKey(t.key); setResult(null); setErr(null); }}
+              onClick={() => { setToolKey(t.key); setResult(null); setErr(null); setShowInfo(false); }}
               style={t.key === toolKey ? { borderColor: "var(--accent)", color: "var(--accent)", fontWeight: 600 } : {}}
+              title={t.description}
             >
               {t.name}
+              <span style={{ marginLeft: 4, opacity: 0.5, fontSize: "0.85em", cursor: "help" }} onClick={(e) => { e.stopPropagation(); setShowInfo(s => s !== t.key ? t.key : false); }}>ⓘ</span>
             </button>
           ))}
         </div>
+
+        {/* Info panel */}
+        {showInfo && (() => {
+          const infoTool = TOOLS.find((t) => t.key === showInfo);
+          if (!infoTool) return null;
+          return (
+            <div className="panel" style={{ marginBottom: 14, padding: "14px 16px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <h3 style={{ fontSize: 14, margin: 0, color: "var(--accent)" }}>{infoTool.name}</h3>
+                <button type="button" onClick={() => setShowInfo(false)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 16 }}>✕</button>
+              </div>
+              <pre style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font)", fontSize: 13, lineHeight: 1.55, color: "var(--ink)", margin: 0 }}>
+                {infoTool.explanation}
+              </pre>
+            </div>
+          );
+        })()}
 
         {/* Params */}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
