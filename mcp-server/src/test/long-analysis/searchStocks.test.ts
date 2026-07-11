@@ -1,9 +1,9 @@
 import { searchStocks } from "../../tools/long-analysis/searchStocks.js";
-import { finnhubProvider } from "../../providers/finnhub.js";
+import { initProviders } from "../../providers/index.js";
 
 async function main() {
   const query = process.argv[2] || "Apple";
-  finnhubProvider.init(process.env.FINNHUB_API_KEY!);
+  initProviders();
   console.log(`Searching stocks for: ${query}`);
   const result = await searchStocks(query);
   console.log(JSON.stringify(result, null, 2));

@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
+import { fetchStockQuote as fetchStockQuoteCombo } from "../../lib/combo-fetchers.js";
 
 export const FetchStockQuoteInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -25,32 +24,26 @@ export interface StockQuoteResult {
   fromCache: boolean;
 }
 
-const QUOTE_TTL_MINUTES = 1;
+
 
 export async function fetchStockQuote(ticker: string): Promise<StockQuoteResult> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `quote:${normalizedTicker}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
+  const result = await fetchStockQuoteCombo(normalizedTicker);
 
-  if (!raw) {
-    raw = await finnhubProvider.getQuote(normalizedTicker);
-    setCachedResponse(cacheKey, raw, QUOTE_TTL_MINUTES);
-    fromCache = false;
-  }
+  const data = result?.data;
 
   return {
     ticker: normalizedTicker,
-    price: raw.c ?? 0,
-    change: raw.d ?? 0,
-    changePercent: raw.dp ?? 0,
-    open: raw.o ?? 0,
-    high: raw.h ?? 0,
-    low: raw.l ?? 0,
-    previousClose: raw.pc ?? 0,
-    timestamp: raw.t ? new Date(raw.t * 1000).toISOString() : new Date().toISOString(),
-    fromCache,
+    price: data?.c ?? 0,
+    change: data?.d ?? 0,
+    changePercent: data?.dp ?? 0,
+    open: data?.o ?? 0,
+    high: data?.h ?? 0,
+    low: data?.l ?? 0,
+    previousClose: data?.pc ?? 0,
+    timestamp: data?.t ? new Date(data.t * 1000).toISOString() : new Date().toISOString(),
+    fromCache: false,
   };
 }
 

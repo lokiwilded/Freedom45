@@ -15,6 +15,11 @@ export interface AssetPoint {
   value: number;
 }
 
+export interface DividendPoint {
+  date: string;   // YYYY-MM-DD
+  amount: number;  // per-share dividend amount
+}
+
 class YahooProvider {
   private lastCallTime = 0;
 
@@ -71,6 +76,43 @@ class YahooProvider {
           : d.toISOString().split("T")[0]!;
       points.push({ date: iso, value: v });
     }
+    return points;
+  }
+
+  /**
+   * Fetch dividend history for a symbol within a date range.
+   * Uses Yahoo's v8 chart API with events=div.
+   * @param symbol Stock ticker, e.g. "KO", "AAPL"
+   * @param from Start date YYYY-MM-DD
+   * @param to End date YYYY-MM-DD
+   */
+  async getDividends(symbol: string, from: string, to: string): Promise<DividendPoint[]> {
+    await this.rateLimit();
+
+    const period1 = Math.floor(new Date(from).getTime() / 1000);
+    const period2 = Math.floor(new Date(to).getTime() / 1000) + 86400;
+    const url = `${YAHOO_BASE}/${encodeURIComponent(symbol)}?period1=${period1}&period2=${period2}&interval=1d&events=div`;
+    const res = await fetch(url, { headers: { "User-Agent": UA } });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Yahoo dividend error for ${symbol}: ${res.status} ${body.slice(0, 120)}`.trim());
+    }
+
+    const json = (await res.json()) as any;
+    const result = json?.chart?.result?.[0];
+    const dividends = result?.events?.dividends;
+    if (!dividends || typeof dividends !== "object") return [];
+
+    const points: DividendPoint[] = [];
+    for (const key of Object.keys(dividends)) {
+      const d = dividends[key];
+      if (d && typeof d.amount === "number") {
+        const date = new Date(d.date * 1000).toISOString().split("T")[0]!;
+        points.push({ date, amount: d.amount });
+      }
+    }
+    points.sort((a, b) => a.date.localeCompare(b.date));
     return points;
   }
 }

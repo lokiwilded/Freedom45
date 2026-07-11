@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
+import { fetchEarningsSurprise } from "../../lib/combo-fetchers.js";
 
 export const GetEarningsSurpriseInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -26,22 +25,14 @@ export interface EarningsSurpriseResult {
   fromCache: boolean;
 }
 
-const TTL_MINUTES = 60 * 24;
+
 
 export async function getEarningsSurprise(ticker: string): Promise<EarningsSurpriseResult> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `earnings:${normalizedTicker}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
+  const result = await fetchEarningsSurprise(normalizedTicker);
 
-  if (!raw) {
-    raw = await finnhubProvider.getEarningsSurprise(normalizedTicker);
-    setCachedResponse(cacheKey, raw, TTL_MINUTES);
-    fromCache = false;
-  }
-
-  const surprises = (raw || []).map((s: any) => ({
+  const surprises = (result?.surprises || []).map((s: any) => ({
     period: s.period || "",
     quarter: s.quarter || 0,
     year: s.year || 0,
@@ -51,7 +42,7 @@ export async function getEarningsSurprise(ticker: string): Promise<EarningsSurpr
     surprisePercent: s.surprisePercent ?? 0,
   }));
 
-  return { ticker: normalizedTicker, surprises, fromCache };
+  return { ticker: normalizedTicker, surprises, fromCache: false };
 }
 
 export const getEarningsSurpriseTool = {

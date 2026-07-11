@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
+import { fetchDividends } from "../../lib/combo-fetchers.js";
 
 export const GetDividendsInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -27,22 +26,14 @@ export interface DividendsResult {
   fromCache: boolean;
 }
 
-const TTL_MINUTES = 60 * 24;
+
 
 export async function getDividends(ticker: string, from: string, to: string): Promise<DividendsResult> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `dividends:${normalizedTicker}:${from}:${to}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
+  const result = await fetchDividends(normalizedTicker, from, to);
 
-  if (!raw) {
-    raw = await finnhubProvider.getDividends(normalizedTicker, from, to);
-    setCachedResponse(cacheKey, raw, TTL_MINUTES);
-    fromCache = false;
-  }
-
-  const dividends = (raw || []).map((d: any) => ({
+  const dividends = (result?.dividends || []).map((d: any) => ({
     date: d.date || "",
     dividend: d.dividend ?? 0,
     adjustedDividend: d.adjustedDividend ?? 0,
@@ -51,7 +42,7 @@ export async function getDividends(ticker: string, from: string, to: string): Pr
     declarationDate: d.declarationDate || "",
   }));
 
-  return { ticker: normalizedTicker, dividends, fromCache };
+  return { ticker: normalizedTicker, dividends, fromCache: false };
 }
 
 export const getDividendsTool = {

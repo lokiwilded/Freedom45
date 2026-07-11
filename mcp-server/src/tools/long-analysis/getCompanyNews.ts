@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
+import { fetchCompanyNews } from "../../lib/combo-fetchers.js";
 
 export const GetCompanyNewsInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -28,7 +27,7 @@ export interface CompanyNewsResult {
   fromCache: boolean;
 }
 
-const TTL_MINUTES = 30;
+
 
 export async function getCompanyNews(
   ticker: string,
@@ -36,18 +35,10 @@ export async function getCompanyNews(
   to: string
 ): Promise<CompanyNewsResult> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `news:${normalizedTicker}:${from}:${to}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
+  const result = await fetchCompanyNews(normalizedTicker, from, to);
 
-  if (!raw) {
-    raw = await finnhubProvider.getCompanyNews(normalizedTicker, from, to);
-    setCachedResponse(cacheKey, raw, TTL_MINUTES);
-    fromCache = false;
-  }
-
-  const news = (raw || []).map((n: any) => ({
+  const news = (result?.news || []).map((n: any) => ({
     category: n.category || "",
     datetime: n.datetime ? new Date(n.datetime * 1000).toISOString() : "",
     headline: n.headline || "",
@@ -57,7 +48,7 @@ export async function getCompanyNews(
     image: n.image || "",
   }));
 
-  return { ticker: normalizedTicker, news, fromCache };
+  return { ticker: normalizedTicker, news, fromCache: false };
 }
 
 export const getCompanyNewsTool = {

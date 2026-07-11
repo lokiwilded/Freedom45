@@ -1,12 +1,12 @@
 import { analyzeRelativeStrength } from "../../tools/long-analysis/analyzeRelativeStrength.js";
-import { finnhubProvider } from "../../providers/finnhub.js";
+import { initProviders } from "../../providers/index.js";
 import { assert, assertEqual, assertInArray, printSummary } from "../shared/assertions.js";
 
 async function main() {
   const ticker = (process.argv[2] || "AAPL").toUpperCase();
   const benchmark = (process.argv[3] || "SPY").toUpperCase();
   const years = parseInt(process.argv[4] || "5", 10);
-  finnhubProvider.init(process.env.FINNHUB_API_KEY!);
+  initProviders();
   console.log(`Analyzing relative strength: ${ticker} vs ${benchmark} over ${years} years`);
   const result = await analyzeRelativeStrength(ticker, benchmark, years);
 

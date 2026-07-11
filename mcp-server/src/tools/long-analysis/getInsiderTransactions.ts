@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
+import { fetchInsiderTransactions } from "../../lib/combo-fetchers.js";
 
 export const GetInsiderTransactionsInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -31,7 +30,7 @@ export interface InsiderTransactionsResult {
   fromCache: boolean;
 }
 
-const TTL_MINUTES = 60;
+
 
 export async function getInsiderTransactions(
   ticker: string,
@@ -39,31 +38,29 @@ export async function getInsiderTransactions(
   to?: string
 ): Promise<InsiderTransactionsResult> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `insider:${normalizedTicker}:${from || ""}:${to || ""}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
+  const result = await fetchInsiderTransactions(normalizedTicker, from, to);
 
-  if (!raw) {
-    raw = await finnhubProvider.getInsiderTransactions(normalizedTicker, from, to);
-    setCachedResponse(cacheKey, raw, TTL_MINUTES);
-    fromCache = false;
-  }
+  const transactions = (result?.transactions || []).map((t: any) => {
+    const change = t.change || 0;
+    const price = t.price || 0;
+    const reportedValue = t.value || 0;
+    const computedValue = reportedValue > 0 ? reportedValue : Math.abs(change) * price;
+    return {
+      symbol: t.symbol || "",
+      insiderName: t.name || "",
+      shares: t.share || 0,
+      change,
+      filingDate: t.filingDate || "",
+      transactionDate: t.transactionDate || "",
+      transactionCode: t.transactionCode || "",
+      price,
+      value: computedValue,
+      isBuy: t.isBuy || false,
+    };
+  });
 
-  const transactions = (raw || []).map((t: any) => ({
-    symbol: t.symbol || "",
-    insiderName: t.name || "",
-    shares: t.share || 0,
-    change: t.change || 0,
-    filingDate: t.filingDate || "",
-    transactionDate: t.transactionDate || "",
-    transactionCode: t.transactionCode || "",
-    price: t.price || 0,
-    value: t.value || 0,
-    isBuy: (t.transactionCode || "").toUpperCase().startsWith("P"),
-  }));
-
-  return { ticker: normalizedTicker, transactions, fromCache };
+  return { ticker: normalizedTicker, transactions, fromCache: false };
 }
 
 export const getInsiderTransactionsTool = {

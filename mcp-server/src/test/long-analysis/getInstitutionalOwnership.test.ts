@@ -1,10 +1,10 @@
 import { getInstitutionalOwnership } from "../../tools/long-analysis/getInstitutionalOwnership.js";
-import { finnhubProvider } from "../../providers/finnhub.js";
+import { initProviders } from "../../providers/index.js";
 import { assertEqual, assertType, printSummary } from "../shared/assertions.js";
 
 async function main() {
   const ticker = (process.argv[2] || "AAPL").toUpperCase();
-  finnhubProvider.init(process.env.FINNHUB_API_KEY!);
+  initProviders();
   console.log(`Fetching institutional ownership for: ${ticker}`);
   const result = await getInstitutionalOwnership(ticker);
   console.log(JSON.stringify(result, null, 2));

@@ -1,10 +1,10 @@
 import { analyzeValuation } from "../../tools/long-analysis/analyzeValuation.js";
-import { finnhubProvider } from "../../providers/finnhub.js";
+import { initProviders } from "../../providers/index.js";
 import { assert, assertEqual, assertType, assertInArray, printSummary } from "../shared/assertions.js";
 
 async function main() {
   const ticker = (process.argv[2] || "AAPL").toUpperCase();
-  finnhubProvider.init(process.env.FINNHUB_API_KEY!);
+  initProviders();
   console.log(`Analyzing valuation for: ${ticker}`);
   const result = await analyzeValuation(ticker);
 

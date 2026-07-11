@@ -91,4 +91,26 @@ export const api = {
   asset: (asset: string) => route<AssetResp>("/api/assets", { asset }),
   elasticity: (driver: string, asset: string, lag?: number) =>
     route<ElasticityResp>("/api/elasticity", { driver, asset, ...(lag != null ? { lag: String(lag) } : {}) }),
+
+  // ── Combo tools ──
+  comboInsiderSentiment: (ticker: string, lookbackDays = 90) =>
+    fetch(`/api/combo/insider-sentiment?ticker=${encodeURIComponent(ticker)}&lookbackDays=${lookbackDays}`).then((r) => r.json()),
+  comboEarningsMomentum: (ticker: string) =>
+    fetch(`/api/combo/earnings-momentum?ticker=${encodeURIComponent(ticker)}`).then((r) => r.json()),
+  comboSmartMoneyConvergence: (ticker: string, lookbackDays = 90) =>
+    fetch(`/api/combo/smart-money-convergence?ticker=${encodeURIComponent(ticker)}&lookbackDays=${lookbackDays}`).then((r) => r.json()),
+  comboShareholderYield: (ticker: string, years = 5) =>
+    fetch(`/api/combo/shareholder-yield?ticker=${encodeURIComponent(ticker)}&years=${years}`).then((r) => r.json()),
+  comboLiquidityRegime: (asset = "SP500", from?: string, to?: string) => {
+    const params = new URLSearchParams({ asset });
+    if (from) params.set("from", from);
+    if (to) params.set("to", to);
+    return fetch(`/api/combo/liquidity-regime?${params}`).then((r) => r.json());
+  },
+  comboCongressNewsCatalyst: (ticker: string, lookbackDays = 90) =>
+    fetch(`/api/combo/congress-news-catalyst?ticker=${encodeURIComponent(ticker)}&lookbackDays=${lookbackDays}`).then((r) => r.json()),
+  comboSectorValuation: (ticker: string) =>
+    fetch(`/api/combo/sector-valuation?ticker=${encodeURIComponent(ticker)}`).then((r) => r.json()),
+  comboSectorRelativeStrength: (ticker: string, benchmark = "SP500", years = 3) =>
+    fetch(`/api/combo/sector-relative-strength?ticker=${encodeURIComponent(ticker)}&benchmark=${benchmark}&years=${years}`).then((r) => r.json()),
 };

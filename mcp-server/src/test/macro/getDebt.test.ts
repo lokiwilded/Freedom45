@@ -1,8 +1,8 @@
 import { getDebt } from "../../tools/macro/getDebt.js";
-import { fredProvider } from "../../providers/fred.js";
+import { initProviders } from "../../providers/index.js";
 
 async function main() {
-  fredProvider.init(process.env.FRED_API_KEY!);
+  initProviders();
   const countries = process.argv[2] ? [process.argv[2].toUpperCase()] : ["US", "JP", "CN"];
 
   for (const c of countries) {

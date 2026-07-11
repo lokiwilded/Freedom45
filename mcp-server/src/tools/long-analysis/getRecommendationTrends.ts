@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
+import { fetchRecommendationTrends } from "../../lib/combo-fetchers.js";
 
 export const GetRecommendationTrendsInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -25,22 +24,14 @@ export interface RecommendationTrendsResult {
   fromCache: boolean;
 }
 
-const TTL_MINUTES = 60 * 24;
+
 
 export async function getRecommendationTrends(ticker: string): Promise<RecommendationTrendsResult> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `recommendations:${normalizedTicker}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
+  const result = await fetchRecommendationTrends(normalizedTicker);
 
-  if (!raw) {
-    raw = await finnhubProvider.getRecommendationTrends(normalizedTicker);
-    setCachedResponse(cacheKey, raw, TTL_MINUTES);
-    fromCache = false;
-  }
-
-  const trends = (raw || []).map((t: any) => ({
+  const trends = (result?.trends || []).map((t: any) => ({
     period: t.period || "",
     strongBuy: t.strongBuy || 0,
     buy: t.buy || 0,
@@ -49,7 +40,7 @@ export async function getRecommendationTrends(ticker: string): Promise<Recommend
     strongSell: t.strongSell || 0,
   }));
 
-  return { ticker: normalizedTicker, trends, fromCache };
+  return { ticker: normalizedTicker, trends, fromCache: false };
 }
 
 export const getRecommendationTrendsTool = {

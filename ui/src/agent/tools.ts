@@ -82,6 +82,105 @@ export const AVAILABLE_TOOLS: ToolSpec[] = [
     description: "Fetch the dashboard hero snapshot: latest liquidity, US market cap, US debt, M2, and key elasticity summary.",
     parameters: { type: "object", properties: {} },
   },
+  {
+    name: "combo_insider_sentiment",
+    description:
+      "Analyze insider buying/selling pressure for a ticker. Returns a descriptive verdict (Heavy Accumulation / Accumulation / Neutral / Distribution / Heavy Distribution / No Data), a 0-100 score, and a graphable daily net-buy series.",
+    parameters: {
+      type: "object",
+      properties: {
+        ticker: { type: "string", description: "Stock ticker, e.g. AAPL" },
+        lookbackDays: { type: "number", description: "How many days back (default 90)" },
+      },
+      required: ["ticker"],
+    },
+  },
+  {
+    name: "combo_earnings_momentum",
+    description:
+      "Analyze earnings and analyst momentum for a ticker. Combines earnings surprises, recommendation trends, price targets, and upgrades/downgrades into a descriptive verdict and 0-100 score.",
+    parameters: {
+      type: "object",
+      properties: { ticker: { type: "string", description: "Stock ticker, e.g. AAPL" } },
+      required: ["ticker"],
+    },
+  },
+  {
+    name: "combo_smart_money_convergence",
+    description:
+      "Find when insiders, institutions, funds, and Congress are aligned on a ticker. Returns a convergence verdict and per-group signals.",
+    parameters: {
+      type: "object",
+      properties: {
+        ticker: { type: "string", description: "Stock ticker, e.g. AAPL" },
+        lookbackDays: { type: "number", description: "How many days back (default 90)" },
+      },
+      required: ["ticker"],
+    },
+  },
+  {
+    name: "combo_shareholder_yield",
+    description:
+      "Analyze total shareholder yield for a ticker (dividend yield + implied buyback proxy). Returns a yield label, sustainability assessment, and annual series.",
+    parameters: {
+      type: "object",
+      properties: {
+        ticker: { type: "string", description: "Stock ticker, e.g. AAPL" },
+        years: { type: "number", description: "Years back (default 5)" },
+      },
+      required: ["ticker"],
+    },
+  },
+  {
+    name: "combo_liquidity_regime",
+    description:
+      "Scan the current global liquidity regime and its impact on an asset. Combines global CB liquidity, US M2, asset history, and liquidity elasticity. Returns a regime verdict, risk-on score, and graphable YoY series.",
+    parameters: {
+      type: "object",
+      properties: {
+        asset: { type: "string", description: "Asset key (SP500, NASDAQ, GOLD, etc.)", default: "SP500" },
+        from: { type: "string", description: "Start date YYYY-MM-DD (optional)" },
+        to: { type: "string", description: "End date YYYY-MM-DD (optional)" },
+      },
+    },
+  },
+  {
+    name: "combo_congress_news_catalyst",
+    description:
+      "Analyze congressional trades for a ticker with nearby news to detect potential catalyst signals. Returns a catalyst verdict, lead/lag stats, and matched headlines.",
+    parameters: {
+      type: "object",
+      properties: {
+        ticker: { type: "string", description: "Stock ticker, e.g. AAPL" },
+        lookbackDays: { type: "number", description: "How many days back (default 90)" },
+      },
+      required: ["ticker"],
+    },
+  },
+  {
+    name: "combo_sector_valuation",
+    description:
+      "Compare a ticker's valuation vs sector peers. Returns percentile ranks for P/E, P/B, P/S, EV/EBITDA and PEG, a composite score, and value-trap flags.",
+    parameters: {
+      type: "object",
+      properties: { ticker: { type: "string", description: "Stock ticker, e.g. AAPL" } },
+      required: ["ticker"],
+    },
+  },
+  {
+    name: "combo_sector_relative_strength",
+    description:
+      "Analyze a sector proxy's relative strength vs a benchmark and its sensitivity to global liquidity. Returns a rotation verdict, alpha, beta, Sharpe, and graphable normalized comparison series.",
+    parameters: {
+      type: "object",
+      properties: {
+        ticker: { type: "string", description: "Sector proxy ticker or asset key, e.g. XLK, AAPL" },
+        benchmark: { type: "string", description: "Benchmark asset key (default SP500)", default: "SP500" },
+        years: { type: "number", description: "Years to analyze (default 3)", default: 3 },
+      },
+      required: ["ticker"],
+    },
+  },
 ];
 
 // Execute a tool call in the browser. Returns a ToolResult.
@@ -142,6 +241,71 @@ export async function executeTool(call: ToolCall): Promise<ToolResult> {
 
       case "get_overview": {
         const data = await api.overview();
+        return { toolCallId: call.id, name: call.name, ok: true, data };
+      }
+
+      // ── Combo tools ──
+      case "combo_insider_sentiment": {
+        const ticker = String(call.arguments.ticker).toUpperCase();
+        const lookbackDays = Number(call.arguments.lookbackDays) || 90;
+        const data = await api.comboInsiderSentiment(ticker, lookbackDays);
+        if (data.error) return fail(data.error);
+        return { toolCallId: call.id, name: call.name, ok: true, data };
+      }
+
+      case "combo_earnings_momentum": {
+        const ticker = String(call.arguments.ticker).toUpperCase();
+        const data = await api.comboEarningsMomentum(ticker);
+        if (data.error) return fail(data.error);
+        return { toolCallId: call.id, name: call.name, ok: true, data };
+      }
+
+      case "combo_smart_money_convergence": {
+        const ticker = String(call.arguments.ticker).toUpperCase();
+        const lookbackDays = Number(call.arguments.lookbackDays) || 90;
+        const data = await api.comboSmartMoneyConvergence(ticker, lookbackDays);
+        if (data.error) return fail(data.error);
+        return { toolCallId: call.id, name: call.name, ok: true, data };
+      }
+
+      case "combo_shareholder_yield": {
+        const ticker = String(call.arguments.ticker).toUpperCase();
+        const years = Number(call.arguments.years) || 5;
+        const data = await api.comboShareholderYield(ticker, years);
+        if (data.error) return fail(data.error);
+        return { toolCallId: call.id, name: call.name, ok: true, data };
+      }
+
+      case "combo_liquidity_regime": {
+        const asset = String(call.arguments.asset ?? "SP500").toUpperCase();
+        const from = call.arguments.from ? String(call.arguments.from) : undefined;
+        const to = call.arguments.to ? String(call.arguments.to) : undefined;
+        const data = await api.comboLiquidityRegime(asset, from, to);
+        if (data.error) return fail(data.error);
+        return { toolCallId: call.id, name: call.name, ok: true, data };
+      }
+
+      case "combo_congress_news_catalyst": {
+        const ticker = String(call.arguments.ticker).toUpperCase();
+        const lookbackDays = Number(call.arguments.lookbackDays) || 90;
+        const data = await api.comboCongressNewsCatalyst(ticker, lookbackDays);
+        if (data.error) return fail(data.error);
+        return { toolCallId: call.id, name: call.name, ok: true, data };
+      }
+
+      case "combo_sector_valuation": {
+        const ticker = String(call.arguments.ticker).toUpperCase();
+        const data = await api.comboSectorValuation(ticker);
+        if (data.error) return fail(data.error);
+        return { toolCallId: call.id, name: call.name, ok: true, data };
+      }
+
+      case "combo_sector_relative_strength": {
+        const ticker = String(call.arguments.ticker).toUpperCase();
+        const benchmark = String(call.arguments.benchmark ?? "SP500").toUpperCase();
+        const years = Number(call.arguments.years) || 3;
+        const data = await api.comboSectorRelativeStrength(ticker, benchmark, years);
+        if (data.error) return fail(data.error);
         return { toolCallId: call.id, name: call.name, ok: true, data };
       }
 

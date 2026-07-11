@@ -32,6 +32,7 @@ sourced data:
 - Your **own charts / notebooks / bots** — the REST API returns clean JSON for any of it.
 - **Congressional-trade & insider screens** — outlier-scored trades with live prices.
 - **Company deep-dives** — 22 equity-research tools (fundamentals, valuation, ownership, news, filings).
+- **Combo analysis** — 8 composite tools that fuse multiple data streams (insider sentiment, earnings momentum, smart-money convergence, shareholder yield, liquidity regime, congress-news catalyst, sector valuation, sector relative strength).
 
 ---
 
@@ -79,7 +80,7 @@ Open **http://localhost:5173**. Keys: [FRED](https://fred.stlouisfed.org/docs/ap
 
 | Way | What it is | Entry point |
 |---|---|---|
-| **MCP server** | 29 tools an AI assistant can call | `mcp-server/src/index.ts` |
+| **MCP server** | 37 tools an AI assistant can call | `mcp-server/src/index.ts` |
 | **REST API** | Read-only JSON over the macro tools + stock lookup | `mcp-server/src/http.ts` → `:8787` |
 | **Dashboard** | Vite + React web app (Recharts + lightweight-charts) | `ui/` → GitHub Pages |
 | **AI agent** | Browser-side agent that graphs data on a live canvas | `ui/src/agent/` (separate, swappable) |
@@ -360,7 +361,8 @@ The "Dashboard" tab shows the static charts; the "Ask" tab is the AI graphing ag
 
 **Tests** (from `mcp-server/`): `npm run test:offline` (no network) runs registry + cache +
 calculation tests. Live tool checks: `test:liquidity`, `test:debt`, `test:assets`,
-`test:elasticity`, `test:macro`, `test:congress`, `test:valuation`, `test:relative-strength`.
+`test:elasticity`, `test:macro`, `test:congress`, `test:valuation`, `test:relative-strength`,
+`test:combo`.
 
 ---
 
@@ -393,6 +395,7 @@ Freedom45/
 │       ├── providers/            # fred, yahoo, dbnomics, finnhub
 │       ├── tools/macro/          # the 6 macro tools
 │       ├── tools/long-analysis/  # the 22 company tools
+│       ├── tools/combo/          # the 8 composite tools
 │       ├── tools/get-congress-trades.ts
 │       ├── scoring/              # outlier + series-stats + elasticity math
 │       └── scripts/dump-static.ts

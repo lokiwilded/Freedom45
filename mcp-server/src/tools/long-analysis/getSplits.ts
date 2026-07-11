@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
+import { fetchSplits } from "../../lib/combo-fetchers.js";
 
 export const GetSplitsInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -25,29 +24,21 @@ export interface SplitsResult {
   fromCache: boolean;
 }
 
-const TTL_MINUTES = 60 * 24 * 365;
+
 
 export async function getSplits(ticker: string, from: string, to: string): Promise<SplitsResult> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `splits:${normalizedTicker}:${from}:${to}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
+  const result = await fetchSplits(normalizedTicker, from, to);
 
-  if (!raw) {
-    raw = await finnhubProvider.getSplits(normalizedTicker, from, to);
-    setCachedResponse(cacheKey, raw, TTL_MINUTES);
-    fromCache = false;
-  }
-
-  const splits = (raw || []).map((s: any) => ({
+  const splits = (result?.splits || []).map((s: any) => ({
     date: s.date || "",
     fromFactor: s.fromFactor ?? 0,
     toFactor: s.toFactor ?? 0,
     ratio: s.ratio || "",
   }));
 
-  return { ticker: normalizedTicker, splits, fromCache };
+  return { ticker: normalizedTicker, splits, fromCache: false };
 }
 
 export const getSplitsTool = {

@@ -1,8 +1,8 @@
 import { getGlobalLiquidity } from "../../tools/macro/getGlobalLiquidity.js";
-import { fredProvider } from "../../providers/fred.js";
+import { initProviders } from "../../providers/index.js";
 
 async function main() {
-  fredProvider.init(process.env.FRED_API_KEY!);
+  initProviders();
   console.log("=== Global liquidity (Fed + ECB + BOJ, USD) ===");
   const r = await getGlobalLiquidity();
   const sample = (r as any).data?.slice(-3).map((x: any) => ({

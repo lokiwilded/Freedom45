@@ -1,10 +1,10 @@
 import { getMoneySupply } from "../../tools/macro/getMoneySupply.js";
 import { getGovernmentDebt } from "../../tools/macro/getGovernmentDebt.js";
-import { fredProvider } from "../../providers/fred.js";
+import { initProviders } from "../../providers/index.js";
 
 async function main() {
   const country = (process.argv[2] || "US").toUpperCase();
-  fredProvider.init(process.env.FRED_API_KEY!);
+  initProviders();
 
   console.log(`=== Money supply (M2) for ${country} ===`);
   const m2 = await getMoneySupply(country);

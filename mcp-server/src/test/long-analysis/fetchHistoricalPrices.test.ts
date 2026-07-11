@@ -1,10 +1,10 @@
 import { fetchHistoricalPrices } from "../../tools/long-analysis/fetchHistoricalPrices.js";
-import { finnhubProvider } from "../../providers/finnhub.js";
+import { initProviders } from "../../providers/index.js";
 
 async function main() {
   const ticker = process.argv[2] || "AAPL";
   const years = Number(process.argv[3] || 1);
-  finnhubProvider.init(process.env.FINNHUB_API_KEY!);
+  initProviders();
   console.log(`Fetching historical prices for: ${ticker} (${years} years)`);
   try {
     const result = await fetchHistoricalPrices(ticker, years);

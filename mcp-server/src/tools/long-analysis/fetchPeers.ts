@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
+import { fetchPeers as fetchPeersCombo } from "../../lib/combo-fetchers.js";
 
 export const FetchPeersInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -18,25 +17,17 @@ export interface PeersResult {
   fromCache: boolean;
 }
 
-const PEERS_TTL_MINUTES = 60 * 24 * 7; // 7 days
+
 
 export async function fetchPeers(ticker: string): Promise<PeersResult> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `peers:${normalizedTicker}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
-
-  if (!raw) {
-    raw = await finnhubProvider.getPeers(normalizedTicker);
-    setCachedResponse(cacheKey, raw, PEERS_TTL_MINUTES);
-    fromCache = false;
-  }
+  const result = await fetchPeersCombo(normalizedTicker);
 
   return {
     ticker: normalizedTicker,
-    peers: Array.isArray(raw) ? raw.map((p: string) => p.toUpperCase()) : [],
-    fromCache,
+    peers: result?.peers ? result.peers.map((p: string) => p.toUpperCase()) : [],
+    fromCache: false,
   };
 }
 

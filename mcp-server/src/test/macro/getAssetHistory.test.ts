@@ -1,8 +1,8 @@
 import { getAssetHistory } from "../../tools/macro/getAssetHistory.js";
-import { fredProvider } from "../../providers/fred.js";
+import { initProviders } from "../../providers/index.js";
 
 async function main() {
-  fredProvider.init(process.env.FRED_API_KEY!);
+  initProviders();
   const assets = process.argv[2] ? [process.argv[2].toUpperCase()] : ["SP500", "GOLD", "US_MKTCAP"];
 
   for (const a of assets) {

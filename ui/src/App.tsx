@@ -6,6 +6,7 @@ import { DebtStack, TimeSeriesChart } from "./charts";
 import type { SeriesConfig, TimeSeriesRow } from "./charts";
 import { Tile, SeriesStatCard, InjectionCard, ReflexivityExplainer, InfoDot } from "./components";
 import AgentPage from "./agent/AgentPage";
+import ComboPage from "./ComboPage";
 
 const GROUP_ORDER = ["Macro", "US", "Europe", "Asia", "Commodity"];
 
@@ -54,7 +55,7 @@ export default function App() {
   const [country, setCountry] = useState("US");
   const [debtRows, setDebtRows] = useState<any[]>([]);
   const [err, setErr] = useState<string | null>(null);
-  const [tab, setTab] = useState<"dashboard" | "agent">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "agent" | "combo">("dashboard");
 
   // Generic time-series chart state.
   const [liquidity, setLiquidity] = useState<LiquidityResp | null>(null);
@@ -140,10 +141,13 @@ export default function App() {
       <nav className="tabs">
         <button type="button" className={tab === "dashboard" ? "on" : ""} onClick={() => setTab("dashboard")}>Dashboard</button>
         <button type="button" className={tab === "agent" ? "on" : ""} onClick={() => setTab("agent")}>Ask</button>
+        <button type="button" className={tab === "combo" ? "on" : ""} onClick={() => setTab("combo")}>Combo</button>
       </nav>
 
       {tab === "agent" ? (
         <AgentPage />
+      ) : tab === "combo" ? (
+        <ComboPage />
       ) : (
         <>
           {/* REFLEXIVITY EXPLAINER */}

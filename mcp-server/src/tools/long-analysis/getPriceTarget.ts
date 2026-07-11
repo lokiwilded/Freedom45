@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
+import { fetchPriceTarget } from "../../lib/combo-fetchers.js";
 
 export const GetPriceTargetInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -30,36 +29,28 @@ export interface PriceTargetResult {
   fromCache: boolean;
 }
 
-const TTL_MINUTES = 60 * 24;
+
 
 export async function getPriceTarget(ticker: string): Promise<PriceTargetResult> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `pricetarget:${normalizedTicker}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
+  const result = await fetchPriceTarget(normalizedTicker);
 
-  if (!raw) {
-    raw = await finnhubProvider.getPriceTarget(normalizedTicker);
-    setCachedResponse(cacheKey, raw, TTL_MINUTES);
-    fromCache = false;
-  }
-
-  const target = raw && raw.mean !== undefined ? {
-    lastUpdated: raw.lastUpdated || "",
-    mean: raw.mean ?? 0,
-    median: raw.median ?? 0,
-    preMean: raw.preMean ?? 0,
-    preMedian: raw.preMedian ?? 0,
-    postMean: raw.postMean ?? 0,
-    postMedian: raw.postMedian ?? 0,
-    preHigh: raw.preHigh ?? 0,
-    preLow: raw.preLow ?? 0,
-    postHigh: raw.postHigh ?? 0,
-    postLow: raw.postLow ?? 0,
+  const target = result?.target ? {
+    lastUpdated: result.target.lastUpdated || "",
+    mean: result.target.mean ?? 0,
+    median: result.target.median ?? 0,
+    preMean: result.target.preMean ?? 0,
+    preMedian: result.target.preMedian ?? 0,
+    postMean: result.target.postMean ?? 0,
+    postMedian: result.target.postMedian ?? 0,
+    preHigh: result.target.preHigh ?? 0,
+    preLow: result.target.preLow ?? 0,
+    postHigh: result.target.postHigh ?? 0,
+    postLow: result.target.postLow ?? 0,
   } : null;
 
-  return { ticker: normalizedTicker, target, fromCache };
+  return { ticker: normalizedTicker, target, fromCache: false };
 }
 
 export const getPriceTargetTool = {

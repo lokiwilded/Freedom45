@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
+import { fetchCompanyProfile as fetchCompanyProfileCombo } from "../../lib/combo-fetchers.js";
 import { db } from "../../db.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
 
 export const FetchCompanyProfileInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -24,13 +23,11 @@ export interface CompanyProfile {
   source?: string;
 }
 
-const PROFILE_TTL_MINUTES = 60 * 24; // 24 hours
+
 
 export async function fetchCompanyProfile(ticker: string): Promise<CompanyProfile> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `profile:${normalizedTicker}`;
 
-  // 1. Fast path: normalized companies table
   const normalizedRow = db
     .prepare("SELECT * FROM companies WHERE ticker = ?")
     .get(normalizedTicker) as
@@ -60,41 +57,32 @@ export async function fetchCompanyProfile(ticker: string): Promise<CompanyProfil
       website: normalizedRow.website || undefined,
       marketCap: normalizedRow.market_cap || undefined,
       fetchedAt: normalizedRow.fetched_at,
-      fromCache: true,
+      fromCache: false,
       source: "companies_table",
     };
   }
 
-  // 2. TTL cache: raw Finnhub response
-  let rawProfile = getCachedResponse(cacheKey);
+  const result = await fetchCompanyProfileCombo(normalizedTicker);
 
-  if (!rawProfile) {
-    rawProfile = await finnhubProvider.getCompanyProfile(normalizedTicker);
-    if (!rawProfile) {
-      throw new Error(`No profile found for ${normalizedTicker}`);
-    }
-    setCachedResponse(cacheKey, rawProfile, PROFILE_TTL_MINUTES);
+  if (!result || !result.profile) {
+    throw new Error(`No profile found for ${normalizedTicker}`);
   }
 
-  // 3. Normalize and persist
-  const marketCap =
-    typeof rawProfile.marketCapitalization === "number"
-      ? rawProfile.marketCapitalization * 1_000_000
-      : undefined;
+  const { profile: data, source } = result;
 
   const profile: CompanyProfile = {
     ticker: normalizedTicker,
-    name: rawProfile.name || "Unknown",
-    sector: rawProfile.sector || "Unknown",
-    industry: rawProfile.industry || rawProfile.finnhubIndustry || "Unknown",
-    exchange: rawProfile.exchange || "Unknown",
-    currency: rawProfile.currency || "Unknown",
-    country: rawProfile.country || "Unknown",
-    website: rawProfile.weburl || rawProfile.website || undefined,
-    marketCap,
+    name: data.name || "Unknown",
+    sector: data.sector || "Unknown",
+    industry: data.industry || "Unknown",
+    exchange: data.exchange || "Unknown",
+    currency: data.currency || "Unknown",
+    country: data.country || "Unknown",
+    website: data.website || undefined,
+    marketCap: data.marketCapitalization || undefined,
     fetchedAt: new Date().toISOString(),
     fromCache: false,
-    source: "finnhub",
+    source,
   };
 
   db.prepare(

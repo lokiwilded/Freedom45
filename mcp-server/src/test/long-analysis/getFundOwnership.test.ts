@@ -1,10 +1,10 @@
 import { getFundOwnership } from "../../tools/long-analysis/getFundOwnership.js";
-import { finnhubProvider } from "../../providers/finnhub.js";
+import { initProviders } from "../../providers/index.js";
 import { assertEqual, assertType, printSummary } from "../shared/assertions.js";
 
 async function main() {
   const ticker = (process.argv[2] || "AAPL").toUpperCase();
-  finnhubProvider.init(process.env.FINNHUB_API_KEY!);
+  initProviders();
   console.log(`Fetching fund ownership for: ${ticker}`);
   const result = await getFundOwnership(ticker);
   console.log(JSON.stringify(result, null, 2));

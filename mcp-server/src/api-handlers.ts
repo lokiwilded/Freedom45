@@ -5,8 +5,8 @@
  * so the API served locally and the JSON baked for GitHub Pages come from identical logic.
  */
 
-import { fredProvider } from "./providers/fred.js";
 import { yahooProvider } from "./providers/yahoo.js";
+import { initProviders } from "./providers/index.js";
 import { getMoneySupply } from "./tools/macro/getMoneySupply.js";
 import { getGovernmentDebt } from "./tools/macro/getGovernmentDebt.js";
 import { getDebt } from "./tools/macro/getDebt.js";
@@ -14,10 +14,16 @@ import { getGlobalLiquidity } from "./tools/macro/getGlobalLiquidity.js";
 import { getAssetHistory } from "./tools/macro/getAssetHistory.js";
 import { getLiquidityElasticity } from "./tools/macro/getLiquidityElasticity.js";
 import { seriesStats, type Pt } from "./scoring/series-stats.js";
+import { analyzeInsiderSentiment } from "./tools/combo/analyzeInsiderSentiment.js";
+import { analyzeEarningsMomentum } from "./tools/combo/analyzeEarningsMomentum.js";
+import { findSmartMoneyConvergence } from "./tools/combo/findSmartMoneyConvergence.js";
+import { analyzeShareholderYield } from "./tools/combo/analyzeShareholderYield.js";
+import { scanLiquidityRegime } from "./tools/combo/scanLiquidityRegime.js";
+import { analyzeCongressNewsCatalyst } from "./tools/combo/analyzeCongressNewsCatalyst.js";
+import { compareSectorValuation } from "./tools/combo/compareSectorValuation.js";
+import { getSectorRelativeStrength } from "./tools/combo/getSectorRelativeStrength.js";
 
-const fredKey = process.env.FRED_API_KEY;
-if (fredKey) fredProvider.init(fredKey);
-else console.error("Warning: FRED_API_KEY not set — macro endpoints will fail.");
+initProviders();
 
 export type Handler = (q: URLSearchParams) => Promise<unknown>;
 
@@ -221,4 +227,38 @@ export const routes: Record<string, Handler> = {
       },
     };
   },
+
+  // ── Combo / composite analysis tools ──
+
+  "/api/combo/insider-sentiment": async (q) =>
+    analyzeInsiderSentiment((q.get("ticker") ?? "").toUpperCase(), num(q.get("lookbackDays")) ?? 90),
+
+  "/api/combo/earnings-momentum": async (q) =>
+    analyzeEarningsMomentum((q.get("ticker") ?? "").toUpperCase()),
+
+  "/api/combo/smart-money-convergence": async (q) =>
+    findSmartMoneyConvergence((q.get("ticker") ?? "").toUpperCase(), num(q.get("lookbackDays")) ?? 90),
+
+  "/api/combo/shareholder-yield": async (q) =>
+    analyzeShareholderYield((q.get("ticker") ?? "").toUpperCase(), num(q.get("years")) ?? 5),
+
+  "/api/combo/liquidity-regime": async (q) =>
+    scanLiquidityRegime(
+      (q.get("asset") ?? "SP500").toUpperCase(),
+      q.get("from") ?? undefined,
+      q.get("to") ?? undefined
+    ),
+
+  "/api/combo/congress-news-catalyst": async (q) =>
+    analyzeCongressNewsCatalyst((q.get("ticker") ?? "").toUpperCase(), num(q.get("lookbackDays")) ?? 90),
+
+  "/api/combo/sector-valuation": async (q) =>
+    compareSectorValuation((q.get("ticker") ?? "").toUpperCase()),
+
+  "/api/combo/sector-relative-strength": async (q) =>
+    getSectorRelativeStrength(
+      (q.get("ticker") ?? "").toUpperCase(),
+      (q.get("benchmark") ?? "SP500").toUpperCase(),
+      num(q.get("years")) ?? 3
+    ),
 };

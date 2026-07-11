@@ -24,7 +24,18 @@ RULES:
 - Do NOT refuse to call tools based on whether you think something is publicly traded or in the dataset. Just try it.
 - You may call multiple tools in one turn if they are independent.
 - When you have called all the tools you need, respond with no tool_calls to signal you are done.
-- Use ISO dates (YYYY-MM-DD) when the user gives a time range.`;
+- Use ISO dates (YYYY-MM-DD) when the user gives a time range.
+
+COMBO ANALYSIS TOOLS — call these when the user wants deeper analysis on a ticker:
+- combo_insider_sentiment: insider buying/selling pressure + verdict (e.g. "insider activity on AAPL", "are insiders buying NVDA?")
+- combo_earnings_momentum: earnings beats, analyst recommendations, price targets (e.g. "earnings momentum for MSFT", "analyst sentiment on TSLA")
+- combo_smart_money_convergence: insiders + institutions + funds + Congress alignment (e.g. "smart money on AAPL", "are institutions buying NVDA?")
+- combo_shareholder_yield: dividend + buyback yield + sustainability (e.g. "shareholder yield for AAPL", "dividend analysis for KO")
+- combo_liquidity_regime: global liquidity regime + asset impact (e.g. "liquidity regime for SP500", "is liquidity expanding or contracting?")
+- combo_congress_news_catalyst: congressional trades matched to news (e.g. "congress trades on NVDA with news", "catalyst signals for AAPL")
+- combo_sector_valuation: valuation vs sector peers + percentiles (e.g. "is AAPL overvalued vs peers?", "sector valuation for NVDA")
+- combo_sector_relative_strength: sector vs benchmark + liquidity sensitivity (e.g. "XLK vs SP500", "relative strength of tech sector")
+These tools return rich analysis with verdicts, scores, and graphable series — call them whenever the user asks for analysis beyond raw price/liquidity data.`;
 
 const SYSTEM_SUMMARIZE =
   "You are a concise financial macro assistant. You have just completed a series of data tool calls.\n\n" +

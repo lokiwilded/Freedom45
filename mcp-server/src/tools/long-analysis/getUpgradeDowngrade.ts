@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
+import { fetchUpgradeDowngrade } from "../../lib/combo-fetchers.js";
 
 export const GetUpgradeDowngradeInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -24,22 +23,14 @@ export interface UpgradeDowngradeResult {
   fromCache: boolean;
 }
 
-const TTL_MINUTES = 60 * 24;
+
 
 export async function getUpgradeDowngrade(ticker: string): Promise<UpgradeDowngradeResult> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `updown:${normalizedTicker}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
+  const result = await fetchUpgradeDowngrade(normalizedTicker);
 
-  if (!raw) {
-    raw = await finnhubProvider.getUpgradeDowngrade(normalizedTicker);
-    setCachedResponse(cacheKey, raw, TTL_MINUTES);
-    fromCache = false;
-  }
-
-  const actions = (raw || []).map((a: any) => ({
+  const actions = (result?.actions || []).map((a: any) => ({
     gradeTime: a.gradeTime ? new Date(a.gradeTime * 1000).toISOString() : "",
     fromGrade: a.fromGrade || "",
     toGrade: a.toGrade || "",
@@ -47,7 +38,7 @@ export async function getUpgradeDowngrade(ticker: string): Promise<UpgradeDowngr
     brokerage: a.brokerage || "",
   }));
 
-  return { ticker: normalizedTicker, actions, fromCache };
+  return { ticker: normalizedTicker, actions, fromCache: false };
 }
 
 export const getUpgradeDowngradeTool = {

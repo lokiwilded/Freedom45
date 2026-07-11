@@ -1,8 +1,8 @@
 import { getLiquidityElasticity } from "../../tools/macro/getLiquidityElasticity.js";
-import { fredProvider } from "../../providers/fred.js";
+import { initProviders } from "../../providers/index.js";
 
 async function main() {
-  fredProvider.init(process.env.FRED_API_KEY!);
+  initProviders();
 
   const combos: [string, string][] = process.argv[2] && process.argv[3]
     ? [[process.argv[2], process.argv[3]]]

@@ -51,6 +51,22 @@ export function projectResult(result: ToolResult, colorIndex = 0): ProjectionRes
       return projectDebt(result, colorIndex);
     case "get_elasticity":
       return projectElasticity(result, colorIndex);
+    case "combo_insider_sentiment":
+      return projectComboSeries(result, colorIndex, "netBuyValue", "Insider net buy $M", "line", "right");
+    case "combo_earnings_momentum":
+      return projectComboSeries(result, colorIndex, "surprisePct", "Earnings surprise %", "histogram", "right", "period");
+    case "combo_smart_money_convergence":
+      return { layers: [] }; // no time series — signals table only
+    case "combo_shareholder_yield":
+      return projectComboSeries(result, colorIndex, "totalYield", "Total yield %", "line", "right", "fiscalYear");
+    case "combo_liquidity_regime":
+      return projectComboSeries(result, colorIndex, "liquidityYoYPct", "Liquidity YoY %", "area", "left");
+    case "combo_congress_news_catalyst":
+      return projectComboSeries(result, colorIndex, "catalystScore", "Catalyst score", "histogram", "right");
+    case "combo_sector_valuation":
+      return { layers: [] }; // peer table, no time series
+    case "combo_sector_relative_strength":
+      return projectComboRs(result, colorIndex);
     default:
       return { layers: [] };
   }
@@ -139,5 +155,65 @@ function projectElasticity(result: ToolResult, colorIndex: number): ProjectionRe
       data: toSeriesData(rows),
     }],
     label: `${data?.asset ?? "Asset"} elasticity`,
+  };
+}
+
+// ── Combo tool projectors ──
+
+function projectComboSeries(
+  result: ToolResult,
+  colorIndex: number,
+  valueKey: string,
+  name: string,
+  kind: "line" | "area" | "histogram",
+  yAxis: "left" | "right",
+  dateKey = "date"
+): ProjectionResult {
+  const data = result.data as { series?: Record<string, any>[]; ticker?: string; asset?: string };
+  const rows = data?.series?.map((s) => ({ date: s[dateKey] as string, value: s[valueKey] as number })) ?? [];
+  const label = data?.ticker ?? data?.asset ?? name;
+  return {
+    layers: [{
+      id: nextId(),
+      kind,
+      key: `combo_${valueKey}_${colorIndex}`,
+      name: `${label}: ${name}`,
+      color: pickColor(colorIndex),
+      yAxis,
+      data: toSeriesData(rows),
+    }],
+    label,
+  };
+}
+
+function projectComboRs(result: ToolResult, colorIndex: number): ProjectionResult {
+  const data = result.data as {
+    series?: { date: string; tickerNormalized: number; benchmarkNormalized: number; relativeRatio: number | null }[];
+    ticker?: string; benchmark?: string;
+  };
+  const rows1 = data?.series?.map((s) => ({ date: s.date, value: s.tickerNormalized })) ?? [];
+  const rows2 = data?.series?.map((s) => ({ date: s.date, value: s.benchmarkNormalized })) ?? [];
+  return {
+    layers: [
+      {
+        id: nextId(),
+        kind: "line",
+        key: `rs_${data?.ticker ?? "ticker"}`,
+        name: data?.ticker ?? "Ticker",
+        color: pickColor(colorIndex),
+        yAxis: "right",
+        data: toSeriesData(rows1),
+      },
+      {
+        id: nextId(),
+        kind: "line",
+        key: `rs_${data?.benchmark ?? "bench"}`,
+        name: data?.benchmark ?? "Benchmark",
+        color: pickColor(colorIndex + 1),
+        yAxis: "right",
+        data: toSeriesData(rows2),
+      },
+    ],
+    label: `${data?.ticker ?? "RS"} vs ${data?.benchmark ?? "Benchmark"}`,
   };
 }

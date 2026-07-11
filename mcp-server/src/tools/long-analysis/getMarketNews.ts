@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
+import { fetchMarketNews } from "../../lib/combo-fetchers.js";
 
 export const GetMarketNewsInput = z.object({
   category: z
@@ -29,22 +28,14 @@ export interface MarketNewsResult {
   fromCache: boolean;
 }
 
-const TTL_MINUTES = 30;
+
 
 export async function getMarketNews(category: string = "general"): Promise<MarketNewsResult> {
   const normalizedCategory = category || "general";
-  const cacheKey = `marketnews:${normalizedCategory}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
+  const result = await fetchMarketNews(normalizedCategory);
 
-  if (!raw) {
-    raw = await finnhubProvider.getMarketNews(normalizedCategory);
-    setCachedResponse(cacheKey, raw, TTL_MINUTES);
-    fromCache = false;
-  }
-
-  const news = (raw || []).map((n: any) => ({
+  const news = (result?.news || []).map((n: any) => ({
     category: n.category || "",
     datetime: n.datetime ? new Date(n.datetime * 1000).toISOString() : "",
     headline: n.headline || "",
@@ -54,7 +45,7 @@ export async function getMarketNews(category: string = "general"): Promise<Marke
     image: n.image || "",
   }));
 
-  return { category: normalizedCategory, news, fromCache };
+  return { category: normalizedCategory, news, fromCache: false };
 }
 
 export const getMarketNewsTool = {

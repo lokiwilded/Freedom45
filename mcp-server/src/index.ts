@@ -5,27 +5,15 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { finnhubProvider } from "./providers/finnhub.js";
-import { fredProvider } from "./providers/fred.js";
+import { initProviders } from "./providers/index.js";
 import { getCongressTradesTool } from "./tools/get-congress-trades.js";
 import { longAnalysisTools } from "./tools/long-analysis/index.js";
 import { macroTools } from "./tools/macro/index.js";
+import { comboTools } from "./tools/combo/index.js";
 
-// Initialize Finnhub provider (API key from env)
-const finnhubApiKey = process.env.FINNHUB_API_KEY;
-if (finnhubApiKey) {
-  finnhubProvider.init(finnhubApiKey);
-} else {
-  console.error("Warning: FINNHUB_API_KEY not set. Tools that use Finnhub will fail.");
-}
-
-// Initialize FRED provider (API key from env)
-const fredApiKey = process.env.FRED_API_KEY;
-if (fredApiKey) {
-  fredProvider.init(fredApiKey);
-} else {
-  console.error("Warning: FRED_API_KEY not set. Macro tools will fail.");
-}
+// Initialize all providers (Finnhub, FRED, Yahoo fallbacks) and register them
+// with the data registry for automatic fallback.
+initProviders();
 
 // Tool registry — all tools from all categories
 const tools: Record<string, { name: string; description: string; inputSchema: any; handler: (args: any) => Promise<any> }> = {
@@ -61,6 +49,9 @@ for (const tool of longAnalysisTools) {
   tools[tool.name] = tool;
 }
 for (const tool of macroTools) {
+  tools[tool.name] = tool;
+}
+for (const tool of comboTools) {
   tools[tool.name] = tool;
 }
 

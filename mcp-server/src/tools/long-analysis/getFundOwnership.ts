@@ -3,8 +3,7 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
+import { fetchFundOwnership } from "../../lib/combo-fetchers.js";
 
 export const GetFundOwnershipInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -25,22 +24,14 @@ export interface FundOwnershipResult {
   fromCache: boolean;
 }
 
-const TTL_MINUTES = 60 * 24;
+
 
 export async function getFundOwnership(ticker: string): Promise<FundOwnershipResult> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `fundown:${normalizedTicker}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
+  const result = await fetchFundOwnership(normalizedTicker);
 
-  if (!raw) {
-    raw = await finnhubProvider.getFundOwnership(normalizedTicker);
-    setCachedResponse(cacheKey, raw, TTL_MINUTES);
-    fromCache = false;
-  }
-
-  const owners = (raw || []).map((o: any) => ({
+  const owners = (result?.owners || []).map((o: any) => ({
     owner: o.owner || o.name || "",
     shares: o.shares ?? 0,
     value: o.value ?? 0,
@@ -49,7 +40,7 @@ export async function getFundOwnership(ticker: string): Promise<FundOwnershipRes
     percentTotal: o.percentTotal ?? 0,
   }));
 
-  return { ticker: normalizedTicker, owners, fromCache };
+  return { ticker: normalizedTicker, owners, fromCache: false };
 }
 
 export const getFundOwnershipTool = {

@@ -3,14 +3,10 @@
  */
 
 import { fetchCompanyProfileTool } from "../../tools/long-analysis/fetchCompanyProfile.js";
-import { finnhubProvider } from "../../providers/finnhub.js";
+import { initProviders } from "../../providers/index.js";
 
 async function main() {
-  const apiKey = process.env.FINNHUB_API_KEY;
-  if (!apiKey) {
-    throw new Error("FINNHUB_API_KEY is not set");
-  }
-  finnhubProvider.init(apiKey);
+  initProviders();
 
   const result = await fetchCompanyProfileTool.handler({ ticker: "NVDA" });
   console.log("Tool handler result:");

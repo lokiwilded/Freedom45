@@ -3,9 +3,8 @@
  */
 
 import { z } from "zod";
-import { finnhubProvider } from "../../providers/finnhub.js";
+import { fetchFundamentalMetrics as fetchFundamentalMetricsCombo } from "../../lib/combo-fetchers.js";
 import { db } from "../../db.js";
-import { getCachedResponse, setCachedResponse } from "../../lib/cache.js";
 
 export const FetchFundamentalMetricsInput = z.object({
   ticker: z.string().describe("Stock ticker, e.g. AAPL"),
@@ -30,7 +29,7 @@ export interface FundamentalMetricsResult {
   fromCache: boolean;
 }
 
-const FUNDAMENTALS_TTL_MINUTES = 60 * 24;
+
 
 function safeNumber(value: unknown): number | null {
   return typeof value === "number" && !isNaN(value) ? value : null;
@@ -38,20 +37,12 @@ function safeNumber(value: unknown): number | null {
 
 export async function fetchFundamentalMetrics(ticker: string): Promise<FundamentalMetricsResult> {
   const normalizedTicker = ticker.toUpperCase();
-  const cacheKey = `fundamentals:${normalizedTicker}`;
 
-  let raw = getCachedResponse(cacheKey);
-  let fromCache = true;
+  const result = await fetchFundamentalMetricsCombo(normalizedTicker);
 
-  if (!raw) {
-    raw = await finnhubProvider.getFundamentalMetrics(normalizedTicker);
-    setCachedResponse(cacheKey, raw, FUNDAMENTALS_TTL_MINUTES);
-    fromCache = false;
-  }
+  const metrics = result?.metrics || {};
 
-  const metrics = raw.metric || {};
-
-  const result: FundamentalMetricsResult = {
+  const fundamentalResult: FundamentalMetricsResult = {
     ticker: normalizedTicker,
     peRatioTTM: safeNumber(metrics.peRatioTTM),
     pbRatioTTM: safeNumber(metrics.pbRatioTTM),
@@ -65,7 +56,7 @@ export async function fetchFundamentalMetrics(ticker: string): Promise<Fundament
     debtEquityTTM: safeNumber(metrics.totalDebtEquityTTM),
     currentRatioTTM: safeNumber(metrics.currentRatioTTM),
     fetchedAt: new Date().toISOString(),
-    fromCache,
+    fromCache: false,
   };
 
   const upsert = db.prepare(
@@ -77,19 +68,20 @@ export async function fetchFundamentalMetrics(ticker: string): Promise<Fundament
   );
 
   const now = new Date().toISOString();
-  upsert.run(normalizedTicker, "peRatioTTM", result.peRatioTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "pbRatioTTM", result.pbRatioTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "psRatioTTM", result.psRatioTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "evEbitdaTTM", result.evEbitdaTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "dividendYieldTTM", result.dividendYieldTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "epsTTM", result.epsTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "roeTTM", result.roeTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "profitMarginTTM", result.profitMarginTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "revenueGrowthTTM", result.revenueGrowthTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "debtEquityTTM", result.debtEquityTTM, "ttm", "finnhub", now);
-  upsert.run(normalizedTicker, "currentRatioTTM", result.currentRatioTTM, "ttm", "finnhub", now);
+  const source = result?.source ?? "combo";
+  upsert.run(normalizedTicker, "peRatioTTM", fundamentalResult.peRatioTTM, "ttm", source, now);
+  upsert.run(normalizedTicker, "pbRatioTTM", fundamentalResult.pbRatioTTM, "ttm", source, now);
+  upsert.run(normalizedTicker, "psRatioTTM", fundamentalResult.psRatioTTM, "ttm", source, now);
+  upsert.run(normalizedTicker, "evEbitdaTTM", fundamentalResult.evEbitdaTTM, "ttm", source, now);
+  upsert.run(normalizedTicker, "dividendYieldTTM", fundamentalResult.dividendYieldTTM, "ttm", source, now);
+  upsert.run(normalizedTicker, "epsTTM", fundamentalResult.epsTTM, "ttm", source, now);
+  upsert.run(normalizedTicker, "roeTTM", fundamentalResult.roeTTM, "ttm", source, now);
+  upsert.run(normalizedTicker, "profitMarginTTM", fundamentalResult.profitMarginTTM, "ttm", source, now);
+  upsert.run(normalizedTicker, "revenueGrowthTTM", fundamentalResult.revenueGrowthTTM, "ttm", source, now);
+  upsert.run(normalizedTicker, "debtEquityTTM", fundamentalResult.debtEquityTTM, "ttm", source, now);
+  upsert.run(normalizedTicker, "currentRatioTTM", fundamentalResult.currentRatioTTM, "ttm", source, now);
 
-  return result;
+  return fundamentalResult;
 }
 
 export const fetchFundamentalMetricsTool = {
