@@ -428,9 +428,11 @@ function ChartFromSeries({ data, pal }: { data: any; pal: any }) {
     formatter: (v: number | null) => v == null ? "—" : Number(v).toFixed(2),
   }));
 
+  const isSparse = dateKey === "fiscalYear" || series.length <= 20;
+
   return (
     <div style={{ marginTop: 16 }}>
-      <TimeSeriesChart rows={rows} series={chartSeries} pal={pal} height={280} />
+      <TimeSeriesChart rows={rows} series={chartSeries} pal={pal} height={280} sparse={isSparse} />
     </div>
   );
 }

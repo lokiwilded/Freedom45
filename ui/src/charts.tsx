@@ -49,21 +49,24 @@ export interface TimeSeriesRow {
  * Generic multi-series time-series chart.
  * Supports any number of line/area series on one or two Y axes.
  */
-export function TimeSeriesChart({ rows, series, pal, height = 360, showLegend = true }: {
+export function TimeSeriesChart({ rows, series, pal, height = 360, showLegend = true, sparse = false }: {
   rows: TimeSeriesRow[];
   series: SeriesConfig[];
   pal: Palette;
   height?: number;
   showLegend?: boolean;
+  sparse?: boolean;
 }) {
   const formatters = Object.fromEntries(series.map((s) => [s.key, s.formatter ?? String]));
   const leftSeries = series.filter((s) => s.yAxisId !== "right");
   const rightSeries = series.filter((s) => s.yAxisId === "right");
   const hasRightAxis = rightSeries.length > 0;
 
-  // Shared Y axis tick formatting: use the first left series' formatter, or the right's if only right.
   const leftTickFormatter = leftSeries[0]?.formatter ?? String;
   const rightTickFormatter = rightSeries[0]?.formatter ?? String;
+
+  const tickFmt = sparse ? (d: string) => d : yearTick;
+  const tickGap = sparse ? 0 : 44;
 
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -79,8 +82,8 @@ export function TimeSeriesChart({ rows, series, pal, height = 360, showLegend = 
         <CartesianGrid stroke={pal.grid} vertical={false} />
         <XAxis
           dataKey="date"
-          tickFormatter={yearTick}
-          minTickGap={44}
+          tickFormatter={tickFmt}
+          minTickGap={tickGap}
           tick={{ fill: pal.muted, fontSize: 12 }}
           stroke={pal.baseline}
         />
