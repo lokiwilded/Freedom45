@@ -60,22 +60,16 @@ Combo: combo_insider_sentiment, combo_earnings_momentum, combo_smart_money_conve
 Long-term: lt_earnings_quality, lt_capital_allocation, lt_balance_sheet_health, lt_compounder_score`;
 
 const SYSTEM_SUMMARIZE =
-  "You are a concise financial analysis assistant. You have just completed a series of data tool calls based on the user's question.\n\n" +
+  "You are a concise financial analysis assistant. You have just completed a series of data tool calls.\n\n" +
   "Rules:\n" +
-  "- Explain what the returned data shows based ONLY on the tool results in the conversation.\n" +
-  "- Do NOT use outside knowledge to answer. The tool results are your only source of truth.\n" +
-  "- Do NOT give buy, sell, or hold recommendations. Describe what the data shows objectively.\n" +
-  "- Structure your summary based on what was asked:\n" +
-  "  • Quick snapshot: price, insiders, earnings momentum, valuation (3-4 sentences)\n" +
-  "  • Deep fundamental: company overview, earnings quality, capital allocation, balance sheet, compounder verdict (4-5 paragraphs)\n" +
-  "  • Macro context: current regime, asset sensitivity, what to watch (3-4 sentences)\n" +
-  "  • Signal scan: list each signal group + what they're doing, note convergence/divergence (3-4 sentences)\n" +
-  "  • Sector comparison: which is leading, cheaper, better positioned (3-4 sentences)\n" +
-  "  • Risk check: financial health, earnings quality, dividend safety, key risks (3-4 sentences)\n" +
-  "- If a tool returned an error or no data, tell the user that data isn't available and why.\n" +
-  "- Be honest about limitations: this is descriptive data, not a prediction.\n" +
-  "- Highlight the most notable findings (strongest signal, biggest risk, key metric).\n" +
-  "- Keep it concise and scannable. Use short paragraphs, not walls of text.";
+  "- Explain what the returned data shows based ONLY on the tool results.\n" +
+  "- Do NOT use outside knowledge. Tool results are your only source of truth.\n" +
+  "- Do NOT give buy, sell, or hold recommendations.\n" +
+  "- Keep it to 3-5 short sentences total. Focus on the most notable findings.\n" +
+  "- If a tool returned an error or no data, briefly mention it.\n" +
+  "- Lead with the most important takeaway, then 1-2 supporting details.\n" +
+  "- Be honest: this is descriptive data, not a prediction.\n" +
+  "- Do NOT list every metric. Only mention what stands out.";
 
 function convertTools(tools: ToolSpec[]): any[] {
   return tools.map((t) => ({
@@ -86,6 +80,33 @@ function convertTools(tools: ToolSpec[]): any[] {
       parameters: t.parameters,
     },
   }));
+}
+
+const STRIP_KEYS = new Set([
+  "series", "table", "highlights", "details", "tradesWithNews",
+  "metadata", "largestBuy", "signals", "percentiles", "peg",
+  "valueTrapFlags", "chart", "scatter", "data",
+]);
+
+function trimToolResult(toolName: string, content: string): string {
+  try {
+    const obj = JSON.parse(content);
+    const stripped: Record<string, any> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (STRIP_KEYS.has(k)) continue;
+      if (k === "metrics" && typeof v === "object" && v !== null) {
+        stripped[k] = v;
+      } else if (Array.isArray(v) && v.length > 5) {
+        stripped[k] = `[${v.length} items]`;
+      } else {
+        stripped[k] = v;
+      }
+    }
+    return JSON.stringify(stripped, null, 0);
+  } catch {
+    if (content.length > 500) return content.slice(0, 500) + "...[truncated]";
+    return content;
+  }
 }
 
 export class OllamaAgent implements Agent {
@@ -167,11 +188,11 @@ export class OllamaAgent implements Agent {
   }
 
   async summarize(messages: ChatMessage[], prompt: string): Promise<string> {
-    // Build a summarize request: system + the full conversation (including tool results).
     const llmMessages: any[] = [{ role: "system", content: SYSTEM_SUMMARIZE }];
     for (const m of messages) {
       if (m.role === "tool") {
-        llmMessages.push({ role: "user", content: `[Tool result: ${m.name}]\n${m.content}` });
+        const trimmed = trimToolResult(m.name ?? "", m.content);
+        llmMessages.push({ role: "user", content: `[Tool result: ${m.name}]\n${trimmed}` });
       } else if (m.role === "assistant" && m.toolCalls?.length) {
         // Skip assistant tool-call messages — the tool results that follow cover it
       } else {
@@ -180,7 +201,7 @@ export class OllamaAgent implements Agent {
     }
     llmMessages.push({
       role: "user",
-      content: `Original request: ${prompt}\n\nSummarize what the data shows. If tools returned errors, explain what's available.`,
+      content: `Original request: ${prompt}\n\nSummarize what the data shows. Keep it to 3-4 short sentences. Focus on the most notable findings only. Do not list every metric.`,
     });
 
     const data = await this.chat(llmMessages);
