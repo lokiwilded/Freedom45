@@ -33,6 +33,7 @@ sourced data:
 - **Congressional-trade & insider screens** — outlier-scored trades with live prices.
 - **Company deep-dives** — 22 equity-research tools (fundamentals, valuation, ownership, news, filings).
 - **Combo analysis** — 8 composite tools that fuse multiple data streams (insider sentiment, earnings momentum, smart-money convergence, shareholder yield, liquidity regime, congress-news catalyst, sector valuation, sector relative strength).
+- **Long-term analysis** — 4 tools using 10+ years of SEC EDGAR financials (earnings quality, capital allocation, balance sheet health, compounder score).
 
 ---
 
@@ -80,7 +81,7 @@ Open **http://localhost:5173**. Keys: [FRED](https://fred.stlouisfed.org/docs/ap
 
 | Way | What it is | Entry point |
 |---|---|---|
-| **MCP server** | 37 tools an AI assistant can call | `mcp-server/src/index.ts` |
+| **MCP server** | 41 tools an AI assistant can call | `mcp-server/src/index.ts` |
 | **REST API** | Read-only JSON over the macro tools + stock lookup | `mcp-server/src/http.ts` → `:8787` |
 | **Dashboard** | Vite + React web app (Recharts + lightweight-charts) | `ui/` → GitHub Pages |
 | **AI agent** | Browser-side agent that graphs data on a live canvas | `ui/src/agent/` (separate, swappable) |
@@ -362,7 +363,7 @@ The "Dashboard" tab shows the static charts; the "Ask" tab is the AI graphing ag
 **Tests** (from `mcp-server/`): `npm run test:offline` (no network) runs registry + cache +
 calculation tests. Live tool checks: `test:liquidity`, `test:debt`, `test:assets`,
 `test:elasticity`, `test:macro`, `test:congress`, `test:valuation`, `test:relative-strength`,
-`test:combo`.
+`test:combo`, `test:longterm`. Unified runner: `npm run test:all-tools` (40 tests, 39 pass).
 
 ---
 
@@ -396,6 +397,7 @@ Freedom45/
 │       ├── tools/macro/          # the 6 macro tools
 │       ├── tools/long-analysis/  # the 22 company tools
 │       ├── tools/combo/          # the 8 composite tools
+│       ├── tools/long-term/      # the 4 long-term analysis tools (SEC EDGAR)
 │       ├── tools/get-congress-trades.ts
 │       ├── scoring/              # outlier + series-stats + elasticity math
 │       └── scripts/dump-static.ts

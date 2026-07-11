@@ -21,7 +21,7 @@ import { existsSync } from "fs";
 interface TestDef {
   name: string;
   file: string;
-  group: "combo" | "long" | "macro" | "congress";
+  group: "combo" | "long" | "longterm" | "macro" | "congress";
 }
 
 const TESTS: TestDef[] = [
@@ -57,6 +57,11 @@ const TESTS: TestDef[] = [
   { name: "get_fund_ownership", file: "src/test/long-analysis/getFundOwnership.test.ts", group: "long" },
   { name: "analyze_valuation", file: "src/test/long-analysis/analyzeValuation.test.ts", group: "long" },
   { name: "analyze_relative_strength", file: "src/test/long-analysis/analyzeRelativeStrength.test.ts", group: "long" },
+  // Long-term
+  { name: "lt_earnings_quality", file: "src/test/long-term/analyzeEarningsQuality.test.ts", group: "longterm" },
+  { name: "lt_capital_allocation", file: "src/test/long-term/analyzeCapitalAllocation.test.ts", group: "longterm" },
+  { name: "lt_balance_sheet_health", file: "src/test/long-term/analyzeBalanceSheetHealth.test.ts", group: "longterm" },
+  { name: "lt_compounder_score", file: "src/test/long-term/analyzeCompounderScore.test.ts", group: "longterm" },
   // Congress
   { name: "get_congress_trades", file: "src/test/getCongressTrades.test.ts", group: "congress" },
   // Macro
@@ -69,7 +74,7 @@ const TESTS: TestDef[] = [
 
 function main() {
   const args = process.argv.slice(2);
-  const filter = args.find((a) => a.startsWith("--"))?.slice(2) as "combo" | "long" | "macro" | "congress" | undefined;
+  const filter = args.find((a) => a.startsWith("--"))?.slice(2) as "combo" | "long" | "longterm" | "macro" | "congress" | undefined;
 
   let tests = filter ? TESTS.filter((t) => t.group === filter) : TESTS;
   tests = tests.filter((t) => existsSync(t.file));

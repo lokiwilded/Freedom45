@@ -181,6 +181,58 @@ export const AVAILABLE_TOOLS: ToolSpec[] = [
       required: ["ticker"],
     },
   },
+  {
+    name: "lt_earnings_quality",
+    description:
+      "Analyze 10+ years of SEC financial data for earnings quality: revenue/EPS CAGR, margin trends (gross/operating/net), R&D intensity, accrual quality, earnings volatility, debt/equity, current ratio, ROE, ROA. Returns verdict (Excellent/Good/Moderate/Weak/Poor Quality) and 0-100 score with annual series.",
+    parameters: {
+      type: "object",
+      properties: {
+        ticker: { type: "string", description: "Stock ticker, e.g. AAPL" },
+        years: { type: "number", description: "Years to analyze (default 10)", default: 10 },
+      },
+      required: ["ticker"],
+    },
+  },
+  {
+    name: "lt_capital_allocation",
+    description:
+      "Analyze how a company allocates capital over 10+ years: dividends, buybacks, R&D, capex, debt reduction. Returns verdict (Exceptional/Disciplined/Adequate/Inefficient/Value Destructive) and 0-100 score with annual series.",
+    parameters: {
+      type: "object",
+      properties: {
+        ticker: { type: "string", description: "Stock ticker, e.g. AAPL" },
+        years: { type: "number", description: "Years to analyze (default 10)", default: 10 },
+      },
+      required: ["ticker"],
+    },
+  },
+  {
+    name: "lt_balance_sheet_health",
+    description:
+      "Analyze 10+ years of balance sheet health from SEC filings: current ratio, quick ratio, debt/equity, debt/assets, interest coverage, working capital, net debt/EBITDA, Altman Z-score. Returns verdict (Fortress/Strong/Adequate/Weak/Distressed) and 0-100 score with annual series.",
+    parameters: {
+      type: "object",
+      properties: {
+        ticker: { type: "string", description: "Stock ticker, e.g. AAPL" },
+        years: { type: "number", description: "Years to analyze (default 10)", default: 10 },
+      },
+      required: ["ticker"],
+    },
+  },
+  {
+    name: "lt_compounder_score",
+    description:
+      "Score a company's compounder quality over 10+ years: revenue/EPS/book value CAGR, avg ROE and ROIC, margin stability, earnings consistency, growth-reinvestment balance, shareholder return years, price CAGR. Returns verdict (Elite/Strong/Moderate/Weak/Not a Compounder) and 0-100 score with annual series.",
+    parameters: {
+      type: "object",
+      properties: {
+        ticker: { type: "string", description: "Stock ticker, e.g. AAPL" },
+        years: { type: "number", description: "Years to analyze (default 10)", default: 10 },
+      },
+      required: ["ticker"],
+    },
+  },
 ];
 
 // Execute a tool call in the browser. Returns a ToolResult.
@@ -305,6 +357,38 @@ export async function executeTool(call: ToolCall): Promise<ToolResult> {
         const benchmark = String(call.arguments.benchmark ?? "SP500").toUpperCase();
         const years = Number(call.arguments.years) || 3;
         const data = await api.comboSectorRelativeStrength(ticker, benchmark, years);
+        if (data.error) return fail(data.error);
+        return { toolCallId: call.id, name: call.name, ok: true, data };
+      }
+
+      case "lt_earnings_quality": {
+        const ticker = String(call.arguments.ticker).toUpperCase();
+        const years = Number(call.arguments.years) || 10;
+        const data = await api.ltEarningsQuality(ticker, years);
+        if (data.error) return fail(data.error);
+        return { toolCallId: call.id, name: call.name, ok: true, data };
+      }
+
+      case "lt_capital_allocation": {
+        const ticker = String(call.arguments.ticker).toUpperCase();
+        const years = Number(call.arguments.years) || 10;
+        const data = await api.ltCapitalAllocation(ticker, years);
+        if (data.error) return fail(data.error);
+        return { toolCallId: call.id, name: call.name, ok: true, data };
+      }
+
+      case "lt_balance_sheet_health": {
+        const ticker = String(call.arguments.ticker).toUpperCase();
+        const years = Number(call.arguments.years) || 10;
+        const data = await api.ltBalanceSheetHealth(ticker, years);
+        if (data.error) return fail(data.error);
+        return { toolCallId: call.id, name: call.name, ok: true, data };
+      }
+
+      case "lt_compounder_score": {
+        const ticker = String(call.arguments.ticker).toUpperCase();
+        const years = Number(call.arguments.years) || 10;
+        const data = await api.ltCompounderScore(ticker, years);
         if (data.error) return fail(data.error);
         return { toolCallId: call.id, name: call.name, ok: true, data };
       }

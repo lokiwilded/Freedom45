@@ -7,6 +7,7 @@ import { useTheme } from "./theme";
 interface ToolDef {
   key: string;
   name: string;
+  group: "combo" | "long-term";
   description: string;
   params: { key: string; label: string; type: "text" | "number"; default: string; placeholder?: string; optional?: boolean }[];
   run: (params: Record<string, string>) => Promise<any>;
@@ -16,6 +17,7 @@ const TOOLS: ToolDef[] = [
   {
     key: "insider-sentiment",
     name: "Insider Sentiment",
+    group: "combo",
     description: "Insider buying/selling pressure with a descriptive verdict and 0-100 score.",
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
@@ -26,6 +28,7 @@ const TOOLS: ToolDef[] = [
   {
     key: "earnings-momentum",
     name: "Earnings Momentum",
+    group: "combo",
     description: "Earnings surprises + analyst recommendations + price targets + upgrades/downgrades.",
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
@@ -35,6 +38,7 @@ const TOOLS: ToolDef[] = [
   {
     key: "smart-money-convergence",
     name: "Smart Money Convergence",
+    group: "combo",
     description: "Insiders + institutions + funds + Congress alignment on a ticker.",
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
@@ -45,6 +49,7 @@ const TOOLS: ToolDef[] = [
   {
     key: "shareholder-yield",
     name: "Shareholder Yield",
+    group: "combo",
     description: "Dividend yield + implied buyback proxy yield with sustainability flag.",
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
@@ -55,6 +60,7 @@ const TOOLS: ToolDef[] = [
   {
     key: "liquidity-regime",
     name: "Liquidity Regime Scanner",
+    group: "combo",
     description: "Global liquidity regime + M2 + asset impact with risk-on score.",
     params: [
       { key: "asset", label: "Asset key", type: "text", default: "SP500", placeholder: "SP500, GOLD, NASDAQ…" },
@@ -66,6 +72,7 @@ const TOOLS: ToolDef[] = [
   {
     key: "congress-news-catalyst",
     name: "Congress News Catalyst",
+    group: "combo",
     description: "Congressional trades matched to nearby news events with catalyst scores.",
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
@@ -76,6 +83,7 @@ const TOOLS: ToolDef[] = [
   {
     key: "sector-valuation",
     name: "Sector Valuation Comparison",
+    group: "combo",
     description: "Ticker valuation vs sector peers — percentile ranks, PEG, value-trap flags.",
     params: [
       { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
@@ -85,6 +93,7 @@ const TOOLS: ToolDef[] = [
   {
     key: "sector-relative-strength",
     name: "Sector Relative Strength",
+    group: "combo",
     description: "Sector proxy relative strength vs benchmark + liquidity sensitivity.",
     params: [
       { key: "ticker", label: "Ticker / asset", type: "text", default: "XLK", placeholder: "e.g. XLK, AAPL" },
@@ -92,6 +101,50 @@ const TOOLS: ToolDef[] = [
       { key: "years", label: "Years", type: "number", default: "3" },
     ],
     run: (p) => api.comboSectorRelativeStrength(p.ticker, p.benchmark, Number(p.years) || 3),
+  },
+  {
+    key: "lt-earnings-quality",
+    name: "Earnings Quality",
+    group: "long-term",
+    description: "10+ years of SEC financial data: revenue/EPS CAGR, margin trends, accrual quality, ROE, ROA.",
+    params: [
+      { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
+      { key: "years", label: "Years", type: "number", default: "10" },
+    ],
+    run: (p) => api.ltEarningsQuality(p.ticker, Number(p.years) || 10),
+  },
+  {
+    key: "lt-capital-allocation",
+    name: "Capital Allocation",
+    group: "long-term",
+    description: "How a company allocates capital over 10+ years: dividends, buybacks, R&D, capex, debt reduction.",
+    params: [
+      { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
+      { key: "years", label: "Years", type: "number", default: "10" },
+    ],
+    run: (p) => api.ltCapitalAllocation(p.ticker, Number(p.years) || 10),
+  },
+  {
+    key: "lt-balance-sheet-health",
+    name: "Balance Sheet Health",
+    group: "long-term",
+    description: "10+ years of balance sheet metrics: current ratio, debt/equity, interest coverage, Altman Z-score.",
+    params: [
+      { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
+      { key: "years", label: "Years", type: "number", default: "10" },
+    ],
+    run: (p) => api.ltBalanceSheetHealth(p.ticker, Number(p.years) || 10),
+  },
+  {
+    key: "lt-compounder-score",
+    name: "Compounder Score",
+    group: "long-term",
+    description: "Compounder quality over 10+ years: revenue/EPS/BV CAGR, avg ROE/ROIC, margin stability, earnings consistency.",
+    params: [
+      { key: "ticker", label: "Ticker", type: "text", default: "AAPL", placeholder: "e.g. AAPL" },
+      { key: "years", label: "Years", type: "number", default: "10" },
+    ],
+    run: (p) => api.ltCompounderScore(p.ticker, Number(p.years) || 10),
   },
 ];
 
@@ -103,7 +156,7 @@ function fmtVal(v: any): string {
 
 function renderTable(obj: Record<string, any>): { key: string; value: string }[] {
   return Object.entries(obj)
-    .filter(([k]) => !["series", "metadata", "tradesWithNews", "table", "highlights", "details", "signals", "percentiles", "peg", "valueTrapFlags"].includes(k))
+    .filter(([k]) => !["series", "metadata", "metrics", "tradesWithNews", "table", "highlights", "details", "signals", "percentiles", "peg", "valueTrapFlags"].includes(k))
     .map(([k, v]) => {
       const labels: Record<string, string> = {
         ticker: "Ticker",
@@ -170,6 +223,43 @@ function renderTable(obj: Record<string, any>): { key: string; value: string }[]
         totalMonths: "Total months",
         asset: "Asset",
         benchmark: "Benchmark",
+        revenueCagr: "Revenue CAGR %",
+        epsCagr: "EPS CAGR %",
+        bookValueCagr: "Book value CAGR %",
+        grossMarginTrend: "Gross margin trend",
+        netMarginTrend: "Net margin trend",
+        operatingMarginTrend: "Operating margin trend",
+        rdIntensityTrend: "R&D intensity trend",
+        accuralQuality: "Accrual quality",
+        earningsVolatility: "Earnings volatility",
+        debtToEquity: "Debt/equity",
+        currentRatio: "Current ratio",
+        returnOnEquity: "ROE %",
+        returnOnAssets: "ROA %",
+        quickRatio: "Quick ratio",
+        debtToAssets: "Debt/assets",
+        interestCoverage: "Interest coverage (x)",
+        workingCapital: "Working capital ($B)",
+        netDebtToEbitda: "Net debt/EBITDA",
+        altmanZScore: "Altman Z-score",
+        assetTurnover: "Asset turnover",
+        inventoryTurnover: "Inventory turnover",
+        dividendPayoutRatio: "Payout ratio",
+        buybackIntensity: "Buyback intensity %",
+        reinvestmentRate: "Reinvestment rate",
+        rdToRevenue: "R&D/revenue",
+        capexToRevenue: "Capex/revenue",
+        assetGrowth: "Asset growth %",
+        equityGrowth: "Equity growth %",
+        dividendGrowthCagr: "Dividend growth CAGR %",
+        debtReduction: "Debt reduction ($)",
+        roeAvg: "Avg ROE %",
+        roicAvg: "Avg ROIC %",
+        marginStability: "Margin stability",
+        earningsConsistency: "Earnings consistency",
+        growthReinvestmentBalance: "Growth/reinvestment balance",
+        shareholderReturnYears: "Shareholder return years",
+        priceCagr: "Price CAGR %",
       };
       return { key: labels[k] ?? k, value: fmtVal(v) };
     });
@@ -181,7 +271,7 @@ function ChartFromSeries({ data, pal }: { data: any; pal: any }) {
   const series: any[] = data.series;
   const keys = Object.keys(series[0]!);
 
-  const dateKey = keys.find((k) => k.toLowerCase().includes("date")) || keys.find((k) => k === "period") || "date";
+  const dateKey = keys.find((k) => k.toLowerCase().includes("date")) || keys.find((k) => k === "period") || keys.find((k) => k === "fiscalYear") || "date";
   const valueKeys = keys.filter((k) => k !== dateKey && typeof series[0]![k] === "number");
 
   if (valueKeys.length === 0) return null;
@@ -331,14 +421,26 @@ export default function ComboPage() {
       <section className="panel" style={{ marginBottom: 20 }}>
         <div className="panel-head">
           <div>
-            <h2>Combo Analysis Tools</h2>
+            <h2>{tool.group === "long-term" ? "Long-Term Analysis" : "Combo Analysis Tools"}</h2>
             <p className="note">{tool.description}</p>
           </div>
         </div>
 
-        {/* Tool selector */}
+        {/* Tool selector — grouped */}
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
-          {TOOLS.map((t) => (
+          {TOOLS.filter((t) => t.group === "combo").map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              className={`toggle ${t.key === toolKey ? "on" : ""}`}
+              onClick={() => { setToolKey(t.key); setResult(null); setErr(null); }}
+              style={t.key === toolKey ? { borderColor: "var(--accent)", color: "var(--accent)", fontWeight: 600 } : {}}
+            >
+              {t.name}
+            </button>
+          ))}
+          <span style={{ borderLeft: "1px solid var(--border)", margin: "2px 4px" }} />
+          {TOOLS.filter((t) => t.group === "long-term").map((t) => (
             <button
               key={t.key}
               type="button"

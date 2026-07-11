@@ -113,4 +113,14 @@ export const api = {
     fetch(`/api/combo/sector-valuation?ticker=${encodeURIComponent(ticker)}`).then((r) => r.json()),
   comboSectorRelativeStrength: (ticker: string, benchmark = "SP500", years = 3) =>
     fetch(`/api/combo/sector-relative-strength?ticker=${encodeURIComponent(ticker)}&benchmark=${benchmark}&years=${years}`).then((r) => r.json()),
+
+  // ── Long-term analysis tools ──
+  ltEarningsQuality: (ticker: string, years = 10) =>
+    fetch(`/api/long-term/earnings-quality?ticker=${encodeURIComponent(ticker)}&years=${years}`).then((r) => r.json()),
+  ltCapitalAllocation: (ticker: string, years = 10) =>
+    fetch(`/api/long-term/capital-allocation?ticker=${encodeURIComponent(ticker)}&years=${years}`).then((r) => r.json()),
+  ltBalanceSheetHealth: (ticker: string, years = 10) =>
+    fetch(`/api/long-term/balance-sheet-health?ticker=${encodeURIComponent(ticker)}&years=${years}`).then((r) => r.json()),
+  ltCompounderScore: (ticker: string, years = 10) =>
+    fetch(`/api/long-term/compounder-score?ticker=${encodeURIComponent(ticker)}&years=${years}`).then((r) => r.json()),
 };

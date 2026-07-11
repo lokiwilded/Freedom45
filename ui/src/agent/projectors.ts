@@ -67,6 +67,14 @@ export function projectResult(result: ToolResult, colorIndex = 0): ProjectionRes
       return { layers: [] }; // peer table, no time series
     case "combo_sector_relative_strength":
       return projectComboRs(result, colorIndex);
+    case "lt_earnings_quality":
+      return projectLtSeries(result, colorIndex, ["revenue", "netIncome", "operatingIncome", "grossProfit"], ["Revenue", "Net income", "Operating income", "Gross profit"], "fiscalYear");
+    case "lt_capital_allocation":
+      return projectLtSeries(result, colorIndex, ["dividends", "rd", "capex", "netIncome"], ["Dividends", "R&D", "Capex", "Net income"], "fiscalYear");
+    case "lt_balance_sheet_health":
+      return projectLtSeries(result, colorIndex, ["assets", "liabilities", "equity", "debt"], ["Assets", "Liabilities", "Equity", "Debt"], "fiscalYear");
+    case "lt_compounder_score":
+      return projectLtSeries(result, colorIndex, ["revenue", "eps", "bookValue"], ["Revenue", "EPS", "Book value"], "fiscalYear");
     default:
       return { layers: [] };
   }
@@ -216,4 +224,33 @@ function projectComboRs(result: ToolResult, colorIndex: number): ProjectionResul
     ],
     label: `${data?.ticker ?? "RS"} vs ${data?.benchmark ?? "Benchmark"}`,
   };
+}
+
+function projectLtSeries(
+  result: ToolResult,
+  colorIndex: number,
+  valueKeys: string[],
+  names: string[],
+  dateKey: string
+): ProjectionResult {
+  const data = result.data as { series?: Record<string, any>[]; ticker?: string };
+  const series = data?.series ?? [];
+  if (series.length === 0) return { layers: [], label: data?.ticker ?? "" };
+
+  const layers = valueKeys.map((key, i) => {
+    const rows = series
+      .map((s) => ({ date: String(s[dateKey]), value: s[key] as number | null }))
+      .filter((r) => r.value != null);
+    return {
+      id: nextId(),
+      kind: "line" as const,
+      key: `lt_${key}_${i}`,
+      name: names[i] ?? key,
+      color: pickColor(colorIndex + i),
+      yAxis: "left" as const,
+      data: toSeriesData(rows),
+    };
+  }).filter((l) => l.data.length > 0);
+
+  return { layers, label: data?.ticker ?? "Long-term analysis" };
 }
