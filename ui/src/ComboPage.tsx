@@ -415,24 +415,34 @@ function ChartFromSeries({ data, pal }: { data: any; pal: any }) {
 
   if (valueKeys.length === 0) return null;
 
-  const rows: TimeSeriesRow[] = series.map((s) => ({
-    date: dateKey === "fiscalYear" ? String(s[dateKey]) : s[dateKey],
-    ...Object.fromEntries(valueKeys.map((k) => [k, s[k]])),
-  }));
+  const isSparse = dateKey === "fiscalYear" || series.length <= 20;
+
+  // Normalize each series to index=100 at first non-null value so wildly
+  // different scales (revenue in billions vs EPS in single digits) are
+  // comparable on one axis.
+  const normalizedRows: TimeSeriesRow[] = series.map((s) => {
+    const row: TimeSeriesRow = { date: dateKey === "fiscalYear" ? String(s[dateKey]) : s[dateKey] };
+    for (const k of valueKeys) {
+      const vals = series.map((r) => r[k] as number | null);
+      const firstVal = vals.find((v) => v != null && v !== 0);
+      const v = s[k] as number | null;
+      row[k] = firstVal && firstVal !== 0 && v != null ? (v / firstVal) * 100 : null;
+    }
+    return row;
+  });
+
   const chartSeries: SeriesConfig[] = valueKeys.map((k, i) => ({
     key: k,
     name: k,
     color: pal.cat[i % pal.cat.length],
     type: "line",
-    yAxisId: i === 0 ? "left" : "right",
-    formatter: (v: number | null) => v == null ? "—" : Number(v).toFixed(2),
+    yAxisId: "left",
+    formatter: (v: number | null) => v == null ? "—" : `${Number(v).toFixed(0)}`,
   }));
-
-  const isSparse = dateKey === "fiscalYear" || series.length <= 20;
 
   return (
     <div style={{ marginTop: 16 }}>
-      <TimeSeriesChart rows={rows} series={chartSeries} pal={pal} height={280} sparse={isSparse} />
+      <TimeSeriesChart rows={normalizedRows} series={chartSeries} pal={pal} height={280} sparse={isSparse} />
     </div>
   );
 }
